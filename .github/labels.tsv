@@ -1,0 +1,11 @@
+# name	color	description
+bug	D73A4A	Confirmed defects or regressions
+docs	0075CA	README, installation, troubleshooting, examples
+release	5319E7	Release prep, metadata, packaging, versioning
+installation	1D76DB	Host-specific setup or environment issues
+compatibility	FBCA04	Host support gaps across Codex, Claude Code, Gemini CLI, opencode
+upstream	0E8A16	Changes caused by OpenSpec or superpowers updates
+workflow	BFD4F2	Stage logic, state flow, verification, archive rules
+enhancement	A2EEEF	Non-breaking improvements to the workflow or docs
+good first issue	7057FF	Safe starting points for new contributors
+help wanted	008672	Work that is open for community contribution

@@ -1,0 +1,4 @@
+interface:
+  display_name: "OpsX Development Workflow"
+  short_description: "Drive a complete development loop through a unified workflow"
+  default_prompt: "Use $opsx-development-workflow to drive this change from requirement exploration all the way through verification, archiving, and merge."
