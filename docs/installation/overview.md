@@ -2,8 +2,6 @@
 
 This project centers on the OpsX Development Workflow skill. The recommended installation path is manual: read the steps below, prepare the listed upstream dependencies, and register the skill with your host. Helper scripts under `scripts/` can speed up checks, but they are optional and never replace the guidance in this document. Upstream skill content lives in external repositories; this repo documents how to integrate them, it does not vendor their code.
 
-本项目的主体是 OpsX Development Workflow skill。推荐安装方式仍然是手动安装：先读文档、准备上游依赖、再把 skill 注册到宿主。`scripts/` 下的脚本只用于加速检查，不替代文档；上游 skill 仍然保持外置。
-
 ## Recommended path
 
 1. **Clone this repository** somewhere you can reach from your host. Keep the path stable so skill references stay valid.
@@ -13,8 +11,6 @@ This project centers on the OpsX Development Workflow skill. The recommended ins
 3. **Register the OpsX skill with your host**: copy or symlink the `skill/` directory into the skill slot your host expects, restart the host if needed, and confirm that the host’s skill list shows `opsx-development-workflow`.
 
 Manual installation is the primary workflow. After you complete the steps above, run the verification checklist in [docs/installation/verify.md](verify.md) to ensure the skill can reach your host and upstream dependencies.
-
-手动安装是主路径。完成以上步骤后，再按 [docs/installation/verify.md](verify.md) 执行验证，确认 skill 能被宿主发现，也能连到上游依赖。
 
 ## Optional helper scripts
 

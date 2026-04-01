@@ -1,21 +1,21 @@
-# GitHub Launch Runbook / GitHub 首发操作清单
+# GitHub Launch Runbook
 
-这份文档不是设计说明，而是首发当天可以直接照着走的顺序。
+This document is not a design note. It is the operating order to follow on launch day.
 
-## 1. 完成仓库门面
+## 1. Finish the repository surface
 
-在 GitHub 仓库页填好以下内容：
+Fill in the following on the GitHub repository page:
 
-- Description：使用 [repository-metadata.md](repository-metadata.md) 里的推荐文案
-- Topics：从 [repository-metadata.md](repository-metadata.md) 里选 8 到 12 个
-- README：确认默认展示的是当前版本
-- License：确认仓库已显示许可证
+- Description: use the recommended copy in [repository-metadata.md](repository-metadata.md)
+- Topics: pick 8 to 12 from [repository-metadata.md](repository-metadata.md)
+- README: confirm the current version is the default landing page
+- License: confirm the repository license is visible
 
-建议先把 About 区域配好，再发 release。
+Set the About section first, then publish the release.
 
-## 2. 建立基础标签
+## 2. Create the base labels
 
-先创建最小集合：
+Create the minimal set first:
 
 - `bug`
 - `docs`
@@ -24,24 +24,24 @@
 - `upstream`
 - `enhancement`
 
-如果你想一步到位，再补：
+If you want the full set immediately, add:
 
 - `release`
 - `workflow`
 - `good first issue`
 - `help wanted`
 
-标签说明见 [issue-labels.md](issue-labels.md)。
+See [issue-labels.md](issue-labels.md) for label definitions.
 
-如果你已经安装并登录 GitHub CLI，也可以直接执行：
+If GitHub CLI is already installed and authenticated, you can also run:
 
 ```bash
 ./scripts/setup-github-labels.sh <owner/repo>
 ```
 
-## 3. 检查公开文档入口
+## 3. Check the public doc entry points
 
-发布前手动点一遍这些入口：
+Open these entry points manually before release:
 
 - [README.md](../README.md)
 - [docs/installation/overview.md](installation/overview.md)
@@ -49,14 +49,14 @@
 - [docs/compatibility-matrix.md](compatibility-matrix.md)
 - [docs/troubleshooting.md](troubleshooting.md)
 
-重点检查两件事：
+Check two things:
 
-- 公开入口是不是都还在
-- 命名是不是已经统一到 `openspec-*`
+- the links are still valid
+- naming is already unified to `openspec-*`
 
-## 4. 跑发布前检查
+## 4. Run pre-release checks
 
-在仓库根目录执行：
+Run these from the repository root:
 
 ```bash
 bash -n scripts/*.sh skill/scripts/*.sh
@@ -64,34 +64,34 @@ bash -n scripts/*.sh skill/scripts/*.sh
 ./scripts/verify-install.sh
 ```
 
-如果这里不过，不要先发 release。
+Do not publish a release if these checks fail.
 
-如果你准备使用 label 同步脚本，再额外确认本机有 `gh`，并且已经完成 `gh auth login`。
+If you plan to use the label sync helper, also confirm that `gh` is installed and `gh auth login` has already been completed.
 
-## 5. 创建首个 Release
+## 5. Create the first release
 
-建议：
+Recommended:
 
-- Tag：`v0.1.0`
-- Title：`v0.1.0: Initial public release`
+- Tag: `v0.1.0`
+- Title: `v0.1.0: Initial public release`
 
-正文可直接从 [first-release.md](first-release.md) 复制，再按你当时的验证状态微调。
+Copy the body from [first-release.md](first-release.md), then adjust it to match the validation state at release time.
 
-## 6. 发布后补第一轮信号
+## 6. Watch the first round of feedback
 
-发布完成后，优先观察这几类反馈：
+After launch, watch these categories first:
 
-- 安装问题
-- 宿主兼容性问题
-- 对工作流定位的误解
-- 对上游依赖关系的误解
+- installation issues
+- host compatibility issues
+- misunderstanding of the workflow positioning
+- misunderstanding of the upstream dependency model
 
-这些反馈通常最先决定 README 和安装文档要不要再收一轮。
+These signals usually determine whether README and installation docs need another tightening pass.
 
-## 7. 首发后建议动作
+## 7. Recommended post-launch follow-up
 
-如果首发顺利，下一轮优先做：
+If the first release goes smoothly, prioritize the next round in this order:
 
-1. 给 Codex 和 opencode 各补一次端到端验证记录
-2. 把兼容矩阵里的保守状态更新到有证据的状态
-3. 从真实 issue 中反推 README 和 troubleshooting 的薄弱点
+1. Add one end-to-end validation record each for Codex and opencode
+2. Update conservative compatibility statuses when evidence is available
+3. Use real issues to tighten README and troubleshooting
