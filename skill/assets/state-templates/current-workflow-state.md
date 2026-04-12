@@ -10,3 +10,11 @@
 - `next_action`: `Read and confirm the current plan`
 - `last_verified_at`: `UNSET`
 - `notes`: `Update this file immediately after each phase transition`
+
+# Checkpoint mechanism fields
+
+- `checkpoint_status`: `pending`
+- `checkpoint_summary`: ``
+- `review_requested_at`: `UNSET`
+- `review_completed_at`: `UNSET`
+- `review_feedback`: `UNSET`

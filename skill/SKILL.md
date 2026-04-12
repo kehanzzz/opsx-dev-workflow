@@ -38,18 +38,270 @@ After creating or selecting a change through `openspec-propose` or the optional 
 
 When this workflow has taken ownership of the task, any upstream skill used inside a phase must hand control back to the OpsX mainline. Do not treat an upstream skill's default "next step" as the workflow's final next step; resume from the current phase definition and the change's `workflow-state/` `next_action`.
 
-1. Explore: clarify requirements, constraints, and success criteria before implementation; `openspec-explore` is the natural OpenSpec entry, and `superpowers:brainstorming` remains optional support when deeper design work is needed.
-2. Create and switch branches: isolate the development context before writing the spec, code, and verification materials; use `superpowers:using-git-worktrees` when isolation is required.
-3. OpenSpec change and spec creation: use `openspec-propose` as the primary route. If your host exposes the experimental artifact-first path, `openspec-new-change` is the optional alternative. Do not begin implementation planning before the spec converges.
-4. `superpowers:writing-plans`: write an executable plan based on the confirmed spec.
-5. Execute the plan: default to `superpowers:test-driven-development`, then choose one of the following execution options:
-   - `superpowers:subagent-driven-development`: the recommended path when you want to stay in the current session and reuse existing subagent workflows.
-   - Efficiency priority: suitable for clear specs, mechanical implementations, and goals of saving tokens or increasing throughput; see [execution-modes.md](references/execution-modes.md) for details.
-   - Quality priority: suitable for high-risk, cross-module, or shifting requirements; see [execution-modes.md](references/execution-modes.md) for details.
-   - If you choose the efficiency or quality priority branch, decide on the external tool before detailing the execution mode. Prefer any tool explicitly specified by the user; if none is specified, ask whether to use `opencode` or `Claude Code`—do not assume. After the tool is confirmed, the current agent must proactively invoke the external tool through the CLI or an equivalent command interface instead of stopping at prompt generation. Refer to [external-agent-tools.md](references/external-agent-tools.md) for tool adaptation and reuse prompt templates in [assets/](assets).
-6. Verification: perform the repository verification actions required by the change, then run `openspec-verify-change` before archiving.
-7. Archive: archive only when implementation, spec, and verification states agree. Use `openspec-archive-change` as the standard path.
-8. `superpowers:finishing-a-development-branch`: handle final test confirmation, merge/PR decisions, and branch finish.
+### Phase 1: Clarify Requirements and Scope
+
+**Description**: Clarify requirements, constraints, and success criteria before implementation.
+
+**Upstream Skills**:
+- Preferred: `openspec-explore`
+- Optional support: `superpowers:brainstorming`
+
+**Stop Condition**: If requirements remain ambiguous, do not create a branch, change, or execution plan.
+
+**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+
+1. Run checkpoint scripts:
+   ```bash
+   ./scripts/generate-checkpoint-summary.sh explore <change_id>
+   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ```
+
+2. Present the summary to the user and await input.
+
+3. User actions:
+   | Action | Description | State Transition |
+   |--------|-------------|------------------|
+   | `approve` / `y` | Confirm phase completion | `pending` → `approved`, proceed to Phase 2 |
+   | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
+   | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
+
+---
+
+### Phase 2: Create and Switch Branches
+
+**Description**: Isolate the development context before writing the spec, code, and verification materials.
+
+**Upstream Skills**:
+- Use the branch naming guidance from exploration or change workflows.
+- When isolation is required: `superpowers:using-git-worktrees`
+
+**Stop Condition**: Must switch to the branch before writing specs, code, verification material, or archival artifacts.
+
+**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+
+1. Run checkpoint scripts:
+   ```bash
+   ./scripts/generate-checkpoint-summary.sh branch-setup <change_id>
+   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ```
+
+2. Present the summary to the user and await input.
+
+3. User actions:
+   | Action | Description | State Transition |
+   |--------|-------------|------------------|
+   | `approve` / `y` | Confirm phase completion | `pending` → `approved`, proceed to Phase 3 |
+   | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
+   | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
+
+---
+
+### Phase 3: Create Change and Spec
+
+**Description**: Create the OpenSpec change and specification.
+
+**Upstream Skills**:
+- Primary: `openspec-propose`
+- Experimental alternative: `openspec-new-change` (if host supports artifact-first workflow)
+
+**Stop Condition**: Do not write implementation plans until the spec accurately reflects the clarified scope.
+
+**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+
+1. Run checkpoint scripts:
+   ```bash
+   ./scripts/generate-checkpoint-summary.sh change-and-spec <change_id>
+   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ```
+
+2. Present the summary to the user and await input.
+
+3. User actions:
+   | Action | Description | State Transition |
+   |--------|-------------|------------------|
+   | `approve` / `y` | Confirm phase completion | `pending` → `approved`, proceed to Phase 4 |
+   | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
+   | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
+
+---
+
+### Phase 4: Write Execution Plan
+
+**Description**: Write an executable plan based on the confirmed spec.
+
+**Upstream Skills**:
+- Required: `superpowers:writing-plans`
+
+**Stop Condition**: The plan must be detailed enough to support execution, verification, and wrap-up.
+
+**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+
+1. Run checkpoint scripts:
+   ```bash
+   ./scripts/generate-checkpoint-summary.sh planning <change_id>
+   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ```
+
+2. Present the summary to the user and await input.
+
+3. User actions:
+   | Action | Description | State Transition |
+   |--------|-------------|------------------|
+   | `approve` / `y` | Confirm phase completion and select execution mode | See Step 4 below |
+   | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
+   | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
+
+4. **After approve**: Use the Question tool to prompt for execution mode selection:
+
+   **Step 1 - Select execution mode**:
+   | Option | Description |
+   |--------|-------------|
+   | `subagent` | Subagent-driven development (recommended, stays in current session) |
+   | `quality` | Quality Priority (external tool, task-by-task review) |
+   | `efficiency` | Efficiency Priority (external tool, batch execution) |
+
+   **Step 2 - If quality or efficiency selected**: Prompt for external tool selection:
+   | Option | Description |
+   |--------|-------------|
+   | `opencode` | Use opencode CLI |
+   | `claude-code` | Use Claude Code |
+
+   **Update workflow-state**:
+   - Set `execution_mode` based on selection: `subagent-driven-development`, `quality-priority`, or `efficiency-priority`
+   - If external tool selected (quality/efficiency), set `external_tool` to `opencode` or `claude-code`
+   - Use `./scripts/update-state-field.sh <change_id> <field> <value>` to update these fields
+   - Proceed to Phase 5 with the chosen execution mode
+
+---
+
+### Phase 5: Execute the Plan
+
+**Description**: Implement the plan under TDD discipline.
+
+**Upstream Skills**:
+- Default: `superpowers:test-driven-development`
+- Recommended: `superpowers:subagent-driven-development`
+
+**Execution Options**:
+- **Subagent-driven development** (recommended): Stay in current session and reuse existing subagent workflows.
+- **Efficiency priority**: For clear specs, mechanical implementations; see [execution-modes.md](references/execution-modes.md).
+- **Quality priority**: For high-risk, cross-module, or shifting requirements; see [execution-modes.md](references/execution-modes.md).
+- **External tool**: If switching to an external agent, confirm whether to use `opencode` or `Claude Code` before invoking. See [external-agent-tools.md](references/external-agent-tools.md).
+
+**Stop Condition**: If the scope changes significantly, return to exploration and spec phases.
+
+**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+
+1. Run checkpoint scripts:
+   ```bash
+   ./scripts/generate-checkpoint-summary.sh execution <change_id>
+   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ```
+
+2. Present the summary to the user and await input.
+
+3. User actions:
+   | Action | Description | State Transition |
+   |--------|-------------|------------------|
+   | `approve` / `y` | Confirm phase completion and select next step | See Step 4 below |
+   | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
+   | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
+
+4. **After approve**: Use the Question tool to prompt for next step selection:
+
+   **Select next step**:
+   | Option | Description | Next Action |
+   |--------|-------------|-------------|
+   | `verify` | Proceed to verification phase | Invoke `openspec-verify-change` |
+   | `review` | Request code review first | Invoke `superpowers:requesting-code-review`, then proceed to Phase 6 after review completes |
+
+   **Proceed based on selection**:
+   - If `verify`: Update `next_action` to `openspec-verify-change` and proceed to Phase 6
+   - If `review`: Invoke `superpowers:requesting-code-review`, then proceed to Phase 6 after review completes
+
+---
+
+### Phase 6: Verify Results
+
+**Description**: Perform repository verification actions and run change verification.
+
+**Upstream Skills**:
+- Required: Repository verification + `openspec-verify-change`
+
+**Stop Condition**: Fix failures before proceeding to archive.
+
+**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+
+1. Run checkpoint scripts:
+   ```bash
+   ./scripts/generate-checkpoint-summary.sh verification <change_id>
+   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ```
+
+2. Present the summary to the user and await input.
+
+3. User actions:
+   | Action | Description | State Transition |
+   |--------|-------------|------------------|
+   | `approve` / `y` | Confirm phase completion | `pending` → `approved`, proceed to Phase 7 |
+   | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
+   | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
+
+---
+
+### Phase 7: Archive Work
+
+**Description**: Archive the change when implementation, spec, and verification states align.
+
+**Upstream Skills**:
+- Required: `openspec-archive-change`
+
+**Stop Condition**: Archive only when implementation, spec, and verification states are aligned.
+
+**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+
+1. Run checkpoint scripts:
+   ```bash
+   ./scripts/generate-checkpoint-summary.sh archive <change_id>
+   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ```
+
+2. Present the summary to the user and await input.
+
+3. User actions:
+   | Action | Description | State Transition |
+   |--------|-------------|------------------|
+   | `approve` / `y` | Confirm phase completion | `pending` → `approved`, proceed to Phase 8 |
+   | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
+   | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
+
+---
+
+### Phase 8: Finish Branch Development
+
+**Description**: Handle final test confirmation, merge/PR decisions, and branch finish.
+
+**Upstream Skills**:
+- Required: `superpowers:finishing-a-development-branch`
+
+**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+
+1. Run checkpoint scripts:
+   ```bash
+   ./scripts/generate-checkpoint-summary.sh branch-finish <change_id>
+   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ```
+
+2. Present the summary to the user and await input.
+
+3. User actions:
+   | Action | Description | State Transition |
+   |--------|-------------|------------------|
+   | `approve` / `y` | Confirm workflow complete | `pending` → `approved`, workflow finished |
+   | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
+   | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
+
+---
 
 See [workflow-reference.md](references/workflow-reference.md) for a full phase reference, stop conditions, and a quick lookup. State templates live in [assets/state-templates/](assets/state-templates), and script entry points are under [scripts/](scripts).
 

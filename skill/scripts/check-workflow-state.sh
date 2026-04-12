@@ -29,6 +29,13 @@ for key in current_phase execution_mode next_action; do
   fi
 done
 
+# New checkpoint fields - warn but don't fail for backward compatibility
+for key in checkpoint_status checkpoint_summary; do
+  if ! rg -q --fixed-strings "\`$key\`:" "$STATE_FILE"; then
+    echo "Warning: State file missing optional field: $key" >&2
+  fi
+done
+
 echo "workflow-state: OK"
 echo "state_dir: $STATE_DIR"
 echo "state_file: $STATE_FILE"

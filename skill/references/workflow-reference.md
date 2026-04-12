@@ -97,3 +97,79 @@ If any stop condition occurs, identify the earliest failing phase and restart fr
 - Treating an external agent’s success report as verification evidence.
 - Running `openspec-archive-change` before `openspec-verify-change`.
 - Ending branch development without invoking `superpowers:finishing-a-development-branch`.
+
+## Checkpoint Mechanism
+
+Checkpoints are automatic pause points that occur after each phase completes (Phase 1 through Phase 8). They provide structured review opportunities and ensure work progresses through proper validation gates.
+
+### Purpose
+
+- Ensure each phase completes successfully before advancing
+- Provide user visibility into workflow progress
+- Enable course correction before accumulating drift
+- Create explicit decision points for approval/rejection
+
+### Trigger Timing
+
+Checkpoints are triggered automatically after these phases:
+
+- Phase 1: After requirement exploration completes
+- Phase 2: After branch/context setup completes
+- Phase 3: After change and spec creation completes
+- Phase 4: After execution plan writing completes
+- Phase 5: After implementation execution completes
+- Phase 6: After verification completes
+- Phase 7: After archival completes
+- Phase 8: After branch finish completes
+
+### Summary Format
+
+Each checkpoint generates a Markdown summary containing:
+
+```
+## Checkpoint Summary - Phase [N]: [Phase Name]
+
+### Completed Items
+- [List of deliverables completed in this phase]
+
+### Next Action
+- [What happens if approved]
+
+### Blockers/Issues (if any)
+- [Current blockers or pending decisions]
+
+### User Actions Required
+- [What user needs to do]
+```
+
+### User Operations
+
+At each checkpoint, the user can choose one of three actions:
+
+| Action | Description | State Transition |
+|--------|-------------|------------------|
+| `approve` | Confirm phase completion and proceed to next phase | `pending` → `approved` |
+| `reject` | Indicate phase output needs revision | `pending` → `rejected` |
+| `modify` | Provide feedback requiring adjustments | `pending` → `modification_requested` |
+
+### State Transition
+
+```
+[Phase N Complete] → Checkpoint Created → State: pending
+                                              ↓
+                        ┌─────────────────────┼─────────────────────┐
+                        ↓                     ↓                     ↓
+                   [approve]              [reject]             [modify]
+                        ↓                     ↓                     ↓
+                   approved              rejected          modification_requested
+                        ↓                     ↓                     ↓
+                [Proceed to            [Return to           [Provide feedback]
+                 Phase N+1]            Phase N to fix]     [State returns to pending]
+```
+
+### Usage Notes
+
+- Checkpoints are informational by default; workflow can auto-continue unless explicitly paused
+- The `rejected` state requires re-executing the current phase before proceeding
+- The `modify` state allows adding context or constraints without full phase re-execution
+- Phase 0 (Session Bootstrap) does not generate a checkpoint as it precedes formal change tracking
