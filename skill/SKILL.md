@@ -329,6 +329,27 @@ Determine the appropriate integration test type based on the scope of changes:
 
 **Description**: Handle final test confirmation, merge/PR decisions, and branch finish.
 
+**Memory Generation** (Before branch finish):
+
+Generate project memory documents to preserve knowledge from this workflow:
+
+1. **Target Documents** (in user project's `docs/` directory):
+   - `business.md` - Business context and domain models
+   - `product.md` - Product features and user scenarios
+   - `architecture.md` - System architecture and technical decisions
+   - `learnings.md` - Lessons learned and troubleshooting notes
+
+2. **Generation Process**:
+   - Read the prompt from `skill/prompts/memory-generation.md`
+   - Gather context from `workflow-state/` and git diff
+   - Generate or update each document with smart merge
+   - Record results in workflow-state
+
+3. **Error Handling**:
+   - If generation fails: Log warning to workflow-state, continue workflow
+   - If no code changes: Skip generation, log info
+   - If docs/ doesn't exist: Create it automatically
+
 **Upstream Skills**:
 - Required: `superpowers:finishing-a-development-branch`
 
