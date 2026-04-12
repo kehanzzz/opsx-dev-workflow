@@ -37,7 +37,7 @@ Regardless of the chosen mode, the current agent must personally initiate the ex
 - Prefer running `scripts/validate-execution-state.sh` for lightweight safety checks before invoking the tool.
 - Reuse scripts such as `scripts/init-change-state.sh`, `scripts/start-execution-mode.sh`, `scripts/advance-phase.sh`, `scripts/set-current-task.sh`, `scripts/finish-task-review.sh`, `scripts/finish-batch-review.sh`, `scripts/update-state-field.sh`, `scripts/run-external-tool.sh`, `scripts/review-result.sh`, and `scripts/append-audit-log.sh`.
 
-## Quality Priority Mode
+## Quality-first Mode
 
 Flow:
 
@@ -57,7 +57,7 @@ Recommended supporting actions:
 - When entering a task, use `scripts/set-current-task.sh` rather than editing `task_id` and `current_task_id` separately.
 - After review, call `scripts/finish-task-review.sh` instead of leaving only natural-language conclusions.
 
-### Quality Priority Prompt Template
+### Quality-first Prompt Template
 
 Reusable template: [quality-task-prompt-body.md](../assets/quality-task-prompt-body.md)
 
@@ -74,7 +74,7 @@ Minimum required fields:
 - `regression_cmd`
 - `STATUS` output format
 
-### Quality Priority Review Checklist
+### Quality-first Review Checklist
 
 The current agent must at least verify:
 
@@ -106,7 +106,7 @@ Close reviews with:
 - `CHANGES_REQUESTED`: stay on the current task and set `next_action` toward fixes or rerunning verification.
 - `BLOCKED`: state the blockage reason and set `next_action` toward resolution steps.
 
-## Efficiency Priority Mode
+## Efficiency-first Mode
 
 Flow:
 

@@ -14,7 +14,9 @@
 # Checkpoint mechanism fields
 
 - `checkpoint_status`: `pending`
-- `checkpoint_summary`: ``
+- `checkpoint_summary`: `UNSET`
+- `checkpoint_updated_at`: `UNSET`
+- `checkpoint_feedback`: `UNSET`
 - `review_requested_at`: `UNSET`
 - `review_completed_at`: `UNSET`
 - `review_feedback`: `UNSET`

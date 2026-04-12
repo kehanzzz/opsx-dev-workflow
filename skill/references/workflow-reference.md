@@ -10,6 +10,7 @@
 | Change creation | `openspec-propose` or `openspec-new-change` | OpenSpec change and spec |
 | Plan writing | `superpowers:writing-plans` | An executable task plan |
 | Implementation | Step 5 execution modes | Implementation under TDD discipline |
+| Code review | `superpowers:requesting-code-review` | Reviewed implementation with resolved feedback |
 | Verification | `openspec-verify-change` | Verifiable validation results |
 | Archiving | `openspec-archive-change` | Complete archival materials |
 | Branch finish | `superpowers:finishing-a-development-branch` | Merge, PR, or cleanup decisions |
@@ -29,6 +30,7 @@
 - Required: explicit exploration before implementation
 - Preferred OpenSpec path: `openspec-explore`
 - Optional support: `superpowers:brainstorming`
+- This phase is still pre-change. Use a session-level summary checkpoint instead of change-bound checkpoint scripts.
 - If requirements remain ambiguous, do not create a branch, change, or execution plan.
 
 ### 2. Create and Switch Branches
@@ -56,25 +58,37 @@
 - Default to `superpowers:test-driven-development`.
 - Prefer `superpowers:subagent-driven-development`.
 - If you switch to an external execution agent, choose between efficiency priority and quality priority.
-- If the external agent is used but the user has not specified a tool, confirm whether to use `opencode` or `Claude Code`.
+- `opencode` is the only runnable external wrapper today. `claude-code` remains a documented placeholder until its wrapper exists.
 - Before invoking an external tool, write `execution_mode`, `external_tool`, and `next_action` to `workflow-state/current-workflow-state.md` in the current change.
 - Record external invocations, task reviews, and acceptance conclusions in `workflow-state/audit-log.md`.
 - If the scope changes significantly, return to the exploration and spec phases.
 - For details on modes, templates, and reviews, see [execution-modes.md](execution-modes.md).
 
+### 5.5 Code Review
+
+- Required: `superpowers:requesting-code-review`
+- Enter this phase only when Step 5 explicitly chooses `review`.
+- Review feedback must be addressed before moving to verification.
+
 ### 6. Verify Results
 
 - Required: repository verification plus `openspec-verify-change`
+- `API Tester`, `Evidence Collector`, and `Reality Checker` are optional accelerators rather than guaranteed dependencies.
+- Resolve the verification path first with `scripts/select-verification-strategy.sh`; if capabilities are missing, fall back to repository-native verification plus `openspec-verify-change`.
 - Fix failures before proceeding.
 
 ### 7. Archive Work
 
 - Required: `openspec-archive-change`
+- Before invoking archival, enter `archive-approval` via `scripts/prepare-phase-gate.sh` and wait for approval.
+- Only after approval should the workflow enter `archive` via `scripts/enter-approved-phase.sh` and run archival.
 - Archive only when implementation, spec, and verification states are aligned.
 
 ### 8. Finish Branch Development
 
 - Required: `superpowers:finishing-a-development-branch`
+- Before invoking branch finish actions, enter `branch-finish-approval` via `scripts/prepare-phase-gate.sh` and wait for approval.
+- Only after approval should the workflow enter `branch-finish` via `scripts/enter-approved-phase.sh`.
 - That skill handles final test confirmation, merge or PR decisions, cleanup, and branch finish.
 
 ## Stop Conditions
@@ -100,7 +114,7 @@ If any stop condition occurs, identify the earliest failing phase and restart fr
 
 ## Checkpoint Mechanism
 
-Checkpoints are automatic pause points that occur after each phase completes (Phase 1 through Phase 8). They provide structured review opportunities and ensure work progresses through proper validation gates.
+Checkpoints are automatic pause points that occur after major review gates. They provide structured review opportunities and ensure work progresses through proper validation gates.
 
 ### Purpose
 
@@ -113,18 +127,27 @@ Checkpoints are automatic pause points that occur after each phase completes (Ph
 
 Checkpoints are triggered automatically after these phases:
 
-- Phase 1: After requirement exploration completes
-- Phase 2: After branch/context setup completes
+- Phase 1: After requirement exploration completes, using a session-level summary rather than change-bound state scripts
 - Phase 3: After change and spec creation completes
 - Phase 4: After execution plan writing completes
 - Phase 5: After implementation execution completes
+- Phase 5.5: After code review completes
 - Phase 6: After verification completes
-- Phase 7: After archival completes
-- Phase 8: After branch finish completes
+- Phase 7: Before archival executes, using the `archive-approval` gate
+- Phase 8: Before branch finish executes, using the `branch-finish-approval` gate
 
 ### Summary Format
 
-Each checkpoint generates a Markdown summary containing:
+Each change-bound checkpoint now generates a Markdown summary from the current `workflow-state/` and persists the rendered body to `workflow-state/checkpoint-summary.md`. The `checkpoint_summary` field stores that file path.
+
+The generated summary should reflect the recorded state whenever available:
+
+- current phase and next allowed action from `current-workflow-state.md`
+- plan summary and task counts from `current-plan.md`
+- current task anchor and review status from `current-task.md`
+- fallback defaults only when state files do not yet exist or lack relevant fields
+
+The rendered Markdown body contains:
 
 ```
 ## Checkpoint Summary - Phase [N]: [Phase Name]
@@ -150,7 +173,7 @@ At each checkpoint, the user can choose one of three actions:
 |--------|-------------|------------------|
 | `approve` | Confirm phase completion and proceed to next phase | `pending` → `approved` |
 | `reject` | Indicate phase output needs revision | `pending` → `rejected` |
-| `modify` | Provide feedback requiring adjustments | `pending` → `modification_requested` |
+| `modify` | Provide feedback requiring adjustments | `pending` → `rejected` |
 
 ### State Transition
 
@@ -161,15 +184,17 @@ At each checkpoint, the user can choose one of three actions:
                         ↓                     ↓                     ↓
                    [approve]              [reject]             [modify]
                         ↓                     ↓                     ↓
-                   approved              rejected          modification_requested
+                   approved              rejected               rejected
                         ↓                     ↓                     ↓
                 [Proceed to            [Return to           [Provide feedback]
-                 Phase N+1]            Phase N to fix]     [State returns to pending]
+                 Phase N+1]            Phase N to fix]     [Record feedback and revise]
 ```
 
 ### Usage Notes
 
-- Checkpoints are informational by default; workflow can auto-continue unless explicitly paused
+- Phase 2 is intentionally excluded because branch setup is a mechanical isolation step
+- For change-bound checkpoints, prefer `./scripts/generate-checkpoint-summary.sh <phase> <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending`
+- For irreversible phases, first call `./scripts/prepare-phase-gate.sh`, then checkpoint, then `./scripts/enter-approved-phase.sh` after approval.
 - The `rejected` state requires re-executing the current phase before proceeding
-- The `modify` state allows adding context or constraints without full phase re-execution
+- The `modify` action records feedback, then routes back through the current phase for revision
 - Phase 0 (Session Bootstrap) does not generate a checkpoint as it precedes formal change tracking

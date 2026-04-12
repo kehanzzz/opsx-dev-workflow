@@ -50,11 +50,9 @@ When this workflow has taken ownership of the task, any upstream skill used insi
 
 **Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
 
-1. Run checkpoint scripts:
-   ```bash
-   ./scripts/generate-checkpoint-summary.sh explore <change_id>
-   ./scripts/update-checkpoint-state.sh <change_id> pending
-   ```
+Phase 1 does not create a change yet, so do not call change-bound checkpoint scripts here.
+
+1. Prepare a session-level summary of clarified scope, constraints, open risks, and the proposed branch/change naming.
 
 2. Present the summary to the user and await input.
 
@@ -93,8 +91,7 @@ When this workflow has taken ownership of the task, any upstream skill used insi
 
 1. Run checkpoint scripts:
    ```bash
-   ./scripts/generate-checkpoint-summary.sh change-and-spec <change_id>
-   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ./scripts/generate-checkpoint-summary.sh change-and-spec <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending
    ```
 
 2. Present the summary to the user and await input.
@@ -121,8 +118,7 @@ When this workflow has taken ownership of the task, any upstream skill used insi
 
 1. Run checkpoint scripts:
    ```bash
-   ./scripts/generate-checkpoint-summary.sh planning <change_id>
-   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ./scripts/generate-checkpoint-summary.sh planning <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending
    ```
 
 2. Present the summary to the user and await input.
@@ -147,12 +143,12 @@ When this workflow has taken ownership of the task, any upstream skill used insi
    | Option | Description |
    |--------|-------------|
    | `opencode` | Use opencode CLI |
-   | `claude-code` | Use Claude Code |
+   | `claude-code` | Reserved placeholder until a runnable wrapper exists |
 
    **Update workflow-state**:
-   - Set `execution_mode` based on selection: `subagent-driven-development`, `quality-priority`, or `efficiency-priority`
+   - Set `execution_mode` based on selection: `subagent-driven-development`, `quality-first`, or `efficiency-first`
    - If external tool selected (quality/efficiency), set `external_tool` to `opencode` or `claude-code`
-   - Use `./scripts/update-state-field.sh <change_id> <field> <value>` to update these fields
+   - Use `./scripts/update-state-field.sh <change_id> workflow <field> <value>` to update these fields
    - Proceed to Phase 5 with the chosen execution mode
 
 ---
@@ -169,7 +165,7 @@ When this workflow has taken ownership of the task, any upstream skill used insi
 - **Subagent-driven development** (recommended): Stay in current session and reuse existing subagent workflows.
 - **Efficiency priority**: For clear specs, mechanical implementations; see [execution-modes.md](references/execution-modes.md).
 - **Quality priority**: For high-risk, cross-module, or shifting requirements; see [execution-modes.md](references/execution-modes.md).
-- **External tool**: If switching to an external agent, confirm whether to use `opencode` or `Claude Code` before invoking. See [external-agent-tools.md](references/external-agent-tools.md).
+- **External tool**: Only `opencode` has a runnable wrapper today. `claude-code` remains a documented placeholder until its wrapper exists. See [external-agent-tools.md](references/external-agent-tools.md).
 
 **Stop Condition**: If the scope changes significantly, return to exploration and spec phases.
 
@@ -177,8 +173,7 @@ When this workflow has taken ownership of the task, any upstream skill used insi
 
 1. Run checkpoint scripts:
    ```bash
-   ./scripts/generate-checkpoint-summary.sh execution <change_id>
-   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ./scripts/generate-checkpoint-summary.sh execution <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending
    ```
 
 2. Present the summary to the user and await input.
@@ -196,11 +191,11 @@ When this workflow has taken ownership of the task, any upstream skill used insi
    | Option | Description | Next Action |
    |--------|-------------|-------------|
    | `verify` | Proceed to verification phase | Invoke `openspec-verify-change` |
-   | `review` | Request code review first | Invoke `superpowers:requesting-code-review`, then proceed to Phase 6 after review completes |
+   | `review` | Request code review first | Invoke `superpowers:requesting-code-review`, then proceed to Phase 5.5 |
 
-    **Proceed based on selection**:
-    - If `verify`: Update `next_action` to `openspec-verify-change` and proceed to Phase 6
-    - If `review`: Invoke `superpowers:requesting-code-review`, then proceed to Phase 6 after review completes
+   **Proceed based on selection**:
+   - If `verify`: Update `next_action` to `openspec-verify-change` and proceed to Phase 6
+   - If `review`: Update `next_action` to `code-review`, invoke `superpowers:requesting-code-review`, then enter Phase 5.5
 
 ---
 
@@ -217,8 +212,7 @@ When this workflow has taken ownership of the task, any upstream skill used insi
 
 1. Run checkpoint scripts:
    ```bash
-   ./scripts/generate-checkpoint-summary.sh code-review <change_id>
-   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ./scripts/generate-checkpoint-summary.sh code-review <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending
    ```
 
 2. Present the summary to the user and await input.
@@ -229,6 +223,10 @@ When this workflow has taken ownership of the task, any upstream skill used insi
    | `approve` / `y` | Confirm review completion | `pending` → `approved`, proceed to Phase 6 |
    | `reject` / `n` | Review needs more work | `pending` → `rejected`, return to address feedback |
    | `modify <feedback>` | Provide additional feedback | `pending` → `rejected`, record feedback and await revision |
+
+4. **After approve**:
+   - Update `next_action` to `openspec-verify-change`
+   - Proceed to Phase 6
 
 ---
 
@@ -266,6 +264,15 @@ Determine the appropriate integration test type based on the scope of changes:
 - Stop fantasy approvals without overwhelming proof
 - Provide realistic production readiness assessment
 
+These verification agents are optional capabilities, not guaranteed runtime dependencies.
+Resolve the verification path before Phase 6:
+
+```bash
+./scripts/select-verification-strategy.sh <backend-only|frontend-ui|full-stack> [capabilities_csv]
+```
+
+If one or more agents are unavailable, fall back to repository-native verification and then invoke `openspec-verify-change`.
+
 **Test Selection Process**:
 1. Analyze the diff to identify changed files and modules
 2. Classify changes: frontend-only, backend-only, or full-stack
@@ -282,8 +289,7 @@ Determine the appropriate integration test type based on the scope of changes:
 
 1. Run checkpoint scripts:
    ```bash
-   ./scripts/generate-checkpoint-summary.sh verification <change_id>
-   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ./scripts/generate-checkpoint-summary.sh verification <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending
    ```
 
 2. Present the summary to the user and await input.
@@ -306,22 +312,32 @@ Determine the appropriate integration test type based on the scope of changes:
 
 **Stop Condition**: Archive only when implementation, spec, and verification states are aligned.
 
-**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+**Checkpoint**: Before running archival, generate a checkpoint summary and await user approval:
 
-1. Run checkpoint scripts:
+1. Prepare the approval gate:
    ```bash
-   ./scripts/generate-checkpoint-summary.sh archive <change_id>
-   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ./scripts/prepare-phase-gate.sh <change_id> archive "run openspec-archive-change"
    ```
 
-2. Present the summary to the user and await input.
+2. Run checkpoint scripts:
+   ```bash
+   ./scripts/generate-checkpoint-summary.sh archive <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending
+   ```
 
-3. User actions:
+3. Present the summary to the user and await input.
+
+4. User actions:
    | Action | Description | State Transition |
    |--------|-------------|------------------|
-   | `approve` / `y` | Confirm phase completion | `pending` → `approved`, proceed to Phase 8 |
+   | `approve` / `y` | Confirm archival may run | `pending` → `approved`, enter archive phase and execute archival |
    | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
    | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
+
+5. After approve:
+   ```bash
+   ./scripts/enter-approved-phase.sh <change_id> archive "run openspec-archive-change"
+   ```
+   Then invoke `openspec-archive-change`.
 
 ---
 
@@ -329,9 +345,9 @@ Determine the appropriate integration test type based on the scope of changes:
 
 **Description**: Handle final test confirmation, merge/PR decisions, and branch finish.
 
-**Memory Generation** (Before branch finish):
+Optional: project memory generation if the project has explicitly enabled it.
 
-Generate project memory documents to preserve knowledge from this workflow:
+When enabled, generate project memory documents to preserve knowledge from this workflow:
 
 1. **Target Documents** (in user project's `docs/` directory):
    - `business.md` - Business context and domain models
@@ -344,31 +360,42 @@ Generate project memory documents to preserve knowledge from this workflow:
    - Gather context from `workflow-state/` and git diff
    - Generate or update each document with smart merge
    - Record results in workflow-state
+   - Skip this entire action when the project has not explicitly opted in
 
 3. **Error Handling**:
    - If generation fails: Log warning to workflow-state, continue workflow
    - If no code changes: Skip generation, log info
-   - If docs/ doesn't exist: Create it automatically
+   - Do not create project memory docs unless opt-in has been confirmed
 
 **Upstream Skills**:
 - Required: `superpowers:finishing-a-development-branch`
 
-**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+**Checkpoint**: Before running branch finish actions, generate a checkpoint summary and await user approval:
 
-1. Run checkpoint scripts:
+1. Prepare the approval gate:
    ```bash
-   ./scripts/generate-checkpoint-summary.sh branch-finish <change_id>
-   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ./scripts/prepare-phase-gate.sh <change_id> branch-finish "run superpowers:finishing-a-development-branch"
    ```
 
-2. Present the summary to the user and await input.
+2. Run checkpoint scripts:
+   ```bash
+   ./scripts/generate-checkpoint-summary.sh branch-finish <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending
+   ```
 
-3. User actions:
+3. Present the summary to the user and await input.
+
+4. User actions:
    | Action | Description | State Transition |
    |--------|-------------|------------------|
-   | `approve` / `y` | Confirm workflow complete | `pending` → `approved`, workflow finished |
+   | `approve` / `y` | Confirm branch finish actions may run | `pending` → `approved`, enter branch-finish phase and execute收尾动作 |
    | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
    | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
+
+5. After approve:
+   ```bash
+   ./scripts/enter-approved-phase.sh <change_id> branch-finish "run superpowers:finishing-a-development-branch"
+   ```
+   Then invoke `superpowers:finishing-a-development-branch`.
 
 ---
 

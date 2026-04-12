@@ -45,6 +45,9 @@ Prefer script-driven state updates over manual edits:
 - `scripts/finish-task-review.sh <change-id> <review-status> <task-status> <mode> <tool> <review-action> <next-action> [project-root]`
 - `scripts/finish-batch-review.sh <change-id> <batch-status> <next-phase> <mode> <tool> <review-action> <next-action> [project-root]`
 - `scripts/advance-phase.sh <change-id> <phase> <next-action> [project-root]`
+- `scripts/prepare-phase-gate.sh <change-id> <archive|branch-finish> <execute-action> [project-root]`
+- `scripts/enter-approved-phase.sh <change-id> <archive|branch-finish> <execute-action> [project-root]`
+- `scripts/select-verification-strategy.sh <backend-only|frontend-ui|full-stack> [capabilities_csv]`
 - `scripts/append-audit-log.sh <change-id> <phase> <mode> <tool> <action> <result> <next-action> [project-root]`
 
 ## Before Entering Step 5

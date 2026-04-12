@@ -56,9 +56,9 @@ PROMPT="$(cat assets/efficiency-batch-prompt-body.md)"
 opencode run "$PROMPT"
 ```
 
-## `Claude Code` wrapper example
+## `claude-code` placeholder example
 
-Suitable for treating the same prompt body as the task description, a sub-agent input, or the description for an external execution session.
+This section is intentionally non-runnable. Keep it only as a future wrapper sketch until the environment has a supported `claude-code` command.
 
 ### Quality-first mode
 
@@ -95,7 +95,7 @@ Task input:
 
 ## Usage rules
 
-- The lead agent must actually perform the wrapper layer actions and not just display these examples.
+- The lead agent must actually perform runnable wrapper actions and not just display these examples.
 - Only replace the wrapper layer without altering the section structure of the prompt bodies.
 - When switching tools, retain the same set of:
   - task boundaries

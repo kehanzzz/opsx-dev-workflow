@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -lt 2 ]]; then
-  echo "Usage: $0 <opencode|claude-code> <prompt-file> [change-id] [mode] [project-root]" >&2
+  echo "Usage: $0 <opencode> <prompt-file> [change-id] [mode] [project-root]" >&2
   exit 1
 fi
 
@@ -28,8 +28,7 @@ case "$TOOL" in
     opencode run "$(cat "$PROMPT_FILE")"
     ;;
   claude-code)
-    echo "Please add the Claude Code CLI wrapper command in this environment." >&2
-    echo "Recommended form: claude-code run \"\$(cat \"$PROMPT_FILE\")\"" >&2
+    echo "claude-code is documented as a placeholder, but no runnable wrapper exists in this environment." >&2
     exit 2
     ;;
   *)

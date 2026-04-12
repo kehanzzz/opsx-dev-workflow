@@ -1,6 +1,6 @@
 # External Execution Tool Adaptation
 
-This skill does not lock Step 5 to a single tool. `opencode`, `Claude Code`, or any other external execution agent may be used so long as they satisfy the same constraints:
+This skill does not lock Step 5 to a single tool. `opencode` is the only runnable wrapper today. `claude-code` remains a documented placeholder until a runnable wrapper exists. Any future external execution agent may be used so long as it satisfies the same constraints:
 
 - The primary agent is responsible for the plan, boundaries, acceptance criteria, and verification rules.
 - The external execution agent handles implementation.
@@ -12,9 +12,9 @@ This skill does not lock Step 5 to a single tool. `opencode`, `Claude Code`, or 
 
 - If the user explicitly names a tool, use that tool.
 - If the user does not specify a tool, the primary agent must confirm which tool to use before entering external execution.
-- Explicitly supported options today are:
+- Explicitly supported today:
   - `opencode`
-  - `Claude Code`
+- `claude-code` remains a documented placeholder until a runnable wrapper exists.
 - Do not assume a tool or enter external execution before the user confirms the choice.
 
 ## Adaptation Principles
@@ -44,17 +44,15 @@ Every tool integration has two layers:
 - Fill the prompt body from `assets/` and submit it with `opencode run` or a similar invocation.
 - This skill already provides the `scripts/run-external-tool.sh opencode <prompt-file>` scaffold.
 
-### `Claude Code`
+### `claude-code` placeholder
 
-- Well suited to delivering the prompt body as a task description, sub-agent input, or external session instruction.
-- The important things to keep stable are:
+- Keep the documentation hook and prompt-body compatibility notes, but do not treat this as a runnable integration.
+- The important things to keep stable once the wrapper exists are:
   - task boundaries
   - acceptance criteria
   - verification commands
   - output format
-- A placeholder for `scripts/run-external-tool.sh claude-code <prompt-file>` exists; once the CLI integration is available, fill it in instead of scattering instructions throughout the documentation.
-
-If the actual CLI syntax for `Claude Code` differs from `opencode`, adjust only the wrapper layer and leave the prompt body unchanged.
+- Until the wrapper is implemented, selecting `claude-code` should be treated as blocked rather than supported.
 
 ## Recommended Practices
 

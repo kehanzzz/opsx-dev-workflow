@@ -15,7 +15,7 @@ TESTS_FAILED=0
 TEST_DIR=""
 SCRIPT_DIR=""
 
-PHASES=("explore" "branch-setup" "change-and-spec" "planning" "execution" "verification" "archive" "branch-finish")
+PHASES=("explore" "branch-setup" "change-and-spec" "planning" "execution" "code-review" "verification" "archive" "branch-finish")
 
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[PASS]${NC} $1"; }
@@ -49,6 +49,12 @@ cleanup_test_env() {
         rm -rf "$TEST_DIR"
         log_success "已清理: $TEST_DIR"
     fi
+}
+
+setup_change_state() {
+    local change_id="${1:-TEST-001}"
+    mkdir -p "$TEST_DIR/openspec/changes/$change_id"
+    "$SCRIPT_DIR/init-change-state.sh" "$change_id" "$TEST_DIR" >/dev/null
 }
 
 test_generate_summary() {
@@ -107,6 +113,7 @@ test_phase_descriptions() {
         "change-and-spec:变更与规范"
         "planning:规划阶段"
         "execution:执行阶段"
+        "code-review:代码评审"
         "verification:验证阶段"
         "archive:归档阶段"
         "branch-finish:分支完成"
@@ -133,6 +140,7 @@ test_default_achievements() {
     local test_cases=(
         "explore:完成需求分析"
         "execution:完成代码实现"
+        "code-review:完成代码评审"
         "archive:代码已归档"
     )
     
@@ -157,6 +165,7 @@ test_next_steps() {
     local test_cases=(
         "explore:进入规划阶段"
         "planning:开始开发迭代"
+        "code-review:进入验证阶段"
         "archive:清理开发分支"
     )
     
@@ -218,9 +227,9 @@ test_timestamp_format() {
 }
 
 test_all_phases_summary() {
-    log_info "=== 测试所有8个阶段摘要 ==="
+    log_info "=== 测试所有受支持阶段摘要 ==="
     
-    local expected_phases=("explore" "branch-setup" "change-and-spec" "planning" "execution" "verification" "archive" "branch-finish")
+    local expected_phases=("explore" "branch-setup" "change-and-spec" "planning" "execution" "code-review" "verification" "archive" "branch-finish")
     
     for phase in "${expected_phases[@]}"; do
         local output
@@ -232,6 +241,69 @@ test_all_phases_summary() {
             fail_test "阶段 [$phase] 在摘要中显示不正确"
         fi
     done
+}
+
+test_state_backed_summary() {
+    log_info "=== 测试基于 workflow-state 生成摘要 ==="
+
+    setup_change_state "TEST-STATE"
+
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-STATE" workflow current_phase "planning" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-STATE" workflow next_action "选择执行模式" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-STATE" workflow execution_mode "quality-first" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-STATE" plan plan_summary "已拆分执行任务并确认验收标准" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-STATE" plan tasks_total "5" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-STATE" plan tasks_completed "2" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-STATE" task task_id "T-02" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-STATE" task task_goal "细化执行计划" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-STATE" task task_status "in_progress" "$TEST_DIR" >/dev/null
+
+    local output
+    output=$(cd "$TEST_DIR" && "$SCRIPT_DIR/generate-checkpoint-summary.sh" "planning" "TEST-STATE" 2>&1)
+
+    if echo "$output" | grep -q "已拆分执行任务并确认验收标准"; then
+        pass_test "摘要包含 plan_summary 中的真实内容"
+    else
+        fail_test "摘要未包含 plan_summary 中的真实内容" "$output"
+    fi
+
+    if echo "$output" | grep -q "2/5"; then
+        pass_test "摘要包含真实任务进度"
+    else
+        fail_test "摘要未包含真实任务进度" "$output"
+    fi
+
+    if echo "$output" | grep -q "选择执行模式"; then
+        pass_test "摘要包含 workflow-state 中的 next_action"
+    else
+        fail_test "摘要未包含 workflow-state 中的 next_action" "$output"
+    fi
+}
+
+test_checkpoint_summary_persisted() {
+    log_info "=== 测试检查点摘要落盘 ==="
+
+    setup_change_state "TEST-CHECKPOINT"
+
+    local summary_output
+    summary_output=$(cd "$TEST_DIR" && "$SCRIPT_DIR/generate-checkpoint-summary.sh" "planning" "TEST-CHECKPOINT" "完成计划审阅")
+
+    printf '%s\n' "$summary_output" | (cd "$TEST_DIR" && "$SCRIPT_DIR/update-checkpoint-state.sh" "TEST-CHECKPOINT" "pending")
+
+    local workflow_file="$TEST_DIR/openspec/changes/TEST-CHECKPOINT/workflow-state/current-workflow-state.md"
+    local summary_file="$TEST_DIR/openspec/changes/TEST-CHECKPOINT/workflow-state/checkpoint-summary.md"
+
+    if grep -q "checkpoint-summary.md" "$workflow_file"; then
+        pass_test "workflow-state 记录了 checkpoint 摘要文件路径"
+    else
+        fail_test "workflow-state 未记录 checkpoint 摘要文件路径"
+    fi
+
+    if [[ -f "$summary_file" ]] && grep -q "完成计划审阅" "$summary_file"; then
+        pass_test "checkpoint 摘要内容已实际写入文件"
+    else
+        fail_test "checkpoint 摘要内容未实际写入文件"
+    fi
 }
 
 print_summary() {
@@ -275,6 +347,8 @@ main() {
     test_summary_format
     test_timestamp_format
     test_all_phases_summary
+    test_state_backed_summary
+    test_checkpoint_summary_persisted
     
     print_summary
 }
