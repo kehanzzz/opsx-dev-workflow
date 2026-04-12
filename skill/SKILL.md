@@ -77,23 +77,6 @@ When this workflow has taken ownership of the task, any upstream skill used insi
 
 **Stop Condition**: Must switch to the branch before writing specs, code, verification material, or archival artifacts.
 
-**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
-
-1. Run checkpoint scripts:
-   ```bash
-   ./scripts/generate-checkpoint-summary.sh branch-setup <change_id>
-   ./scripts/update-checkpoint-state.sh <change_id> pending
-   ```
-
-2. Present the summary to the user and await input.
-
-3. User actions:
-   | Action | Description | State Transition |
-   |--------|-------------|------------------|
-   | `approve` / `y` | Confirm phase completion | `pending` → `approved`, proceed to Phase 3 |
-   | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
-   | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
-
 ---
 
 ### Phase 3: Create Change and Spec
@@ -215,15 +198,80 @@ When this workflow has taken ownership of the task, any upstream skill used insi
    | `verify` | Proceed to verification phase | Invoke `openspec-verify-change` |
    | `review` | Request code review first | Invoke `superpowers:requesting-code-review`, then proceed to Phase 6 after review completes |
 
-   **Proceed based on selection**:
-   - If `verify`: Update `next_action` to `openspec-verify-change` and proceed to Phase 6
-   - If `review`: Invoke `superpowers:requesting-code-review`, then proceed to Phase 6 after review completes
+    **Proceed based on selection**:
+    - If `verify`: Update `next_action` to `openspec-verify-change` and proceed to Phase 6
+    - If `review`: Invoke `superpowers:requesting-code-review`, then proceed to Phase 6 after review completes
+
+---
+
+### Phase 5.5: Code Review
+
+**Description**: Perform code review after implementation completes.
+
+**Upstream Skills**:
+- Required: `superpowers:requesting-code-review`
+
+**Stop Condition**: Address all review feedback before proceeding to verification.
+
+**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+
+1. Run checkpoint scripts:
+   ```bash
+   ./scripts/generate-checkpoint-summary.sh code-review <change_id>
+   ./scripts/update-checkpoint-state.sh <change_id> pending
+   ```
+
+2. Present the summary to the user and await input.
+
+3. User actions:
+   | Action | Description | State Transition |
+   |--------|-------------|------------------|
+   | `approve` / `y` | Confirm review completion | `pending` → `approved`, proceed to Phase 6 |
+   | `reject` / `n` | Review needs more work | `pending` → `rejected`, return to address feedback |
+   | `modify <feedback>` | Provide additional feedback | `pending` → `rejected`, record feedback and await revision |
 
 ---
 
 ### Phase 6: Verify Results
 
 **Description**: Perform repository verification actions and run change verification.
+
+**Integration Testing Strategy**:
+
+Determine the appropriate integration test type based on the scope of changes:
+
+| Change Scope | Primary Test Agent | Secondary Agent | Test Focus |
+|-------------|-------------------|-----------------|------------|
+| Backend-only changes | `API Tester` | `Reality Checker` | API integration, cross-module tests |
+| Frontend/UI changes | `Evidence Collector` | `Reality Checker` | End-to-end (E2E) tests with screenshots |
+| Full-stack changes | `API Tester` + `Evidence Collector` | `Reality Checker` | E2E + API integration tests |
+
+**Agent Responsibilities**:
+
+### `API Tester` (Backend Integration)
+- Test API endpoints with functional, security, and performance validation
+- Validate API response format, status codes, error handling
+- Test cross-module integration and data flow
+- Check authentication, authorization, rate limiting
+
+### `Evidence Collector` (Frontend E2E)
+- Execute end-to-end user journeys with screenshot evidence
+- Test responsive design across devices (desktop/tablet/mobile)
+- Verify interactive elements (forms, navigation, accordions)
+- Default to finding 3-5 issues, require visual proof
+
+### `Reality Checker` (Final Integration)
+- Cross-validate all test findings with evidence
+- Default to "NEEDS WORK" status
+- Stop fantasy approvals without overwhelming proof
+- Provide realistic production readiness assessment
+
+**Test Selection Process**:
+1. Analyze the diff to identify changed files and modules
+2. Classify changes: frontend-only, backend-only, or full-stack
+3. Select appropriate test agent(s) from the table above
+4. Execute tests and capture evidence in `.sisyphus/evidence/`
+5. Run `Reality Checker` for final integration validation
 
 **Upstream Skills**:
 - Required: Repository verification + `openspec-verify-change`
