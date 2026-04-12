@@ -11,6 +11,8 @@
 
 set -o pipefail
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
 show_help() {
     cat << 'EOF'
 智能文档合并脚本
@@ -29,9 +31,10 @@ show_help() {
     prepend        将新内容插入到文档开头
     smart          智能模式:
                   - 如果文档不存在，创建新文档
-                  - 如果文档存在，检查变更历史部分
-                  - 追加新的变更记录
-                  - 更新相关领域内容（如果已存在则更新，不存在则追加）
+                  - 对 structured 文档按同名 section 合并正文
+                  - 对已知记忆文档按模板顺序输出正文 section
+                  - 将新的变更记录插入到日志标题下方
+                  - 如果没有日志部分，则在文档末尾追加
 
 退出码:
     0 - 成功
@@ -91,64 +94,240 @@ fi
 smart_merge() {
     local target="$1"
     local content="$2"
-    
+    local target_tmp content_tmp merged_tmp template_tmp
+    local target_basename template_file
+
     if [ ! -f "$target" ]; then
         echo "$content"
         return 0
     fi
-    
-    local existing
-    existing="$(cat "$target")"
-    
+
+    cleanup_smart_merge() {
+        rm -f "$target_tmp" "$content_tmp" "$merged_tmp"
+        if [ -n "$template_tmp" ] && [ "$template_tmp" != "/dev/null" ]; then
+            rm -f "$template_tmp"
+        fi
+    }
+
+    target_tmp="$(mktemp)"
+    content_tmp="$(mktemp)"
+    merged_tmp="$(mktemp)"
+    template_tmp=""
+
+    printf '%s\n' "$content" > "$content_tmp"
+    cp "$target" "$target_tmp"
+
+    target_basename="$(basename "$target")"
+    template_file="$SCRIPT_DIR/../assets/document-templates/$target_basename"
+    if [ -f "$template_file" ]; then
+        template_tmp="$(mktemp)"
+        cp "$template_file" "$template_tmp"
+    else
+        template_tmp="/dev/null"
+    fi
+
+    if rg -q "^##[[:space:]]+" "$target_tmp" && rg -q "^##[[:space:]]+" "$content_tmp"; then
+        if awk '
+            function trim(text) {
+                sub(/^[[:space:]]+/, "", text)
+                sub(/[[:space:]]+$/, "", text)
+                return text
+            }
+            function is_log_header(line) {
+                return line == "## 更新日志" || line == "## 变更历史"
+            }
+            function append_line(block, line) {
+                return block ? block ORS line : line
+            }
+            function flush_section(kind,    header_key) {
+                if (current_header == "") {
+                    return
+                }
+                header_key = current_header
+                if (kind == "content") {
+                    content_sections[header_key] = current_block
+                    content_order[++content_count] = header_key
+                    if (is_log_header(header_key)) {
+                        content_log_header = header_key
+                    }
+                } else if (kind == "template") {
+                    if (!is_log_header(header_key)) {
+                        template_order[++template_count] = header_key
+                    }
+                } else {
+                    target_sections[header_key] = current_block
+                    target_order[++target_count] = header_key
+                    if (is_log_header(header_key)) {
+                        target_log_header = header_key
+                    }
+                }
+                current_header = ""
+                current_block = ""
+            }
+            FNR == 1 {
+                flush_section(kind)
+                current_header = ""
+                current_block = ""
+            }
+            FILENAME == ARGV[1] {
+                kind = "content"
+            }
+            FILENAME == ARGV[2] {
+                kind = "target"
+            }
+            FILENAME == ARGV[3] {
+                kind = "template"
+            }
+            /^##[[:space:]]+/ {
+                flush_section(kind)
+                current_header = $0
+                current_block = $0
+                next
+            }
+            {
+                if (current_header == "") {
+                    if (kind == "content") {
+                        content_prelude = append_line(content_prelude, $0)
+                    } else {
+                        target_prelude = append_line(target_prelude, $0)
+                    }
+                } else {
+                    current_block = append_line(current_block, $0)
+                }
+            }
+            END {
+                flush_section(kind)
+
+                log_header = target_log_header ? target_log_header : content_log_header
+                if (log_header == "") {
+                    log_header = "## 更新日志"
+                }
+
+                prelude = target_prelude ? target_prelude : content_prelude
+                if (prelude != "") {
+                    print prelude
+                }
+
+                if (template_count > 0) {
+                    for (i = 1; i <= template_count; i++) {
+                        header = template_order[i]
+                        if (header in content_sections) {
+                            print ""
+                            print content_sections[header]
+                            used_content[header] = 1
+                            used_target[header] = 1
+                        } else if (header in target_sections) {
+                            print ""
+                            print target_sections[header]
+                            used_target[header] = 1
+                        }
+                    }
+                }
+
+                for (i = 1; i <= target_count; i++) {
+                    header = target_order[i]
+                    if (is_log_header(header) || (header in used_target)) {
+                        continue
+                    }
+                    if (header in content_sections) {
+                        print ""
+                        print content_sections[header]
+                        used_content[header] = 1
+                        used_target[header] = 1
+                    } else {
+                        print ""
+                        print target_sections[header]
+                    }
+                }
+
+                for (i = 1; i <= content_count; i++) {
+                    header = content_order[i]
+                    if (is_log_header(header) || (header in used_content)) {
+                        continue
+                    }
+                    print ""
+                    print content_sections[header]
+                    inserted_new_sections = 1
+                }
+
+                print ""
+                print log_header
+
+                if (content_log_header != "" && content_sections[content_log_header] != "") {
+                    split(content_sections[content_log_header], lines, /\n/)
+                    for (i = 2; i <= length(lines); i++) {
+                        line = lines[i]
+                        if (trim(line) == "" && pending_blank == 0) {
+                            pending_blank = 1
+                            continue
+                        }
+                        if (trim(line) != "") {
+                            if (pending_blank == 1) {
+                                print ""
+                                pending_blank = 0
+                            }
+                            print line
+                            content_log_printed = 1
+                        }
+                    }
+                    pending_blank = 0
+                }
+
+                if (target_log_header != "" && target_sections[target_log_header] != "") {
+                    split(target_sections[target_log_header], lines, /\n/)
+                    for (i = 2; i <= length(lines); i++) {
+                        line = lines[i]
+                        if (trim(line) == "" && target_pending_blank == 0) {
+                            target_pending_blank = 1
+                            continue
+                        }
+                        if (trim(line) != "") {
+                            if (content_log_printed || target_log_printed || target_pending_blank == 1) {
+                                print ""
+                            }
+                            print line
+                            target_log_printed = 1
+                            target_pending_blank = 0
+                        }
+                    }
+                }
+            }
+        ' "$content_tmp" "$target_tmp" "$template_tmp" > "$merged_tmp"; then
+            cat "$merged_tmp"
+            cleanup_smart_merge
+            return 0
+        fi
+    fi
+
     local timestamp
     timestamp="$(date "+%Y-%m-%d %H:%M:%S")"
-    
-    local has_changelog=0
-    if echo "$existing" | grep -qi "##.*变更"; then
-        has_changelog=1
-    fi
-    
-    if [ $has_changelog -eq 1 ]; then
-        local heading_found=0
-        local result=""
-        local in_changelog=0
-        
-        while IFS= read -r line; do
-            if [ $heading_found -eq 0 ] && echo "$line" | grep -q "^##"; then
-                heading_found=1
-            fi
-            
-            if [ $heading_found -eq 1 ] && [ $in_changelog -eq 0 ] && echo "$line" | grep -qi "^##.*变更"; then
-                in_changelog=1
-                echo "$line"
-                echo ""
-                echo "### $timestamp"
-                echo "$content"
-                echo ""
-                continue
-            fi
-            
-            result="${result}${line}"$'\n'
-        done <<< "$existing"
-        
-        if [ $in_changelog -eq 0 ]; then
-            echo "$existing"
-            echo ""
-            echo "## 变更历史"
-            echo ""
-            echo "### $timestamp"
-            echo "$content"
-        else
-            echo -n "$result"
-        fi
+
+    if rg -qi "^##[[:space:]].*变更" "$target"; then
+        awk -v timestamp="$timestamp" -v content="$content" '
+            BEGIN {
+                inserted = 0
+            }
+            {
+                print
+                if (!inserted && $0 ~ /^##[[:space:]].*变更/) {
+                    print ""
+                    print "### " timestamp
+                    print content
+                    print ""
+                    inserted = 1
+                }
+            }
+        ' "$target"
     else
-        echo "$existing"
+        cat "$target"
         echo ""
         echo "## 变更历史"
         echo ""
         echo "### $timestamp"
         echo "$content"
     fi
+
+    cleanup_smart_merge
 }
 
 case "$MODE" in

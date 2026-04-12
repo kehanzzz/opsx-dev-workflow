@@ -5,13 +5,12 @@
 在 Phase 8 (Finish Branch Development) 阶段生成项目记忆文档。
 
 此 prompt 用于引导 LLM 直接生成 4 个记忆文档：
-- `business.md` - 业务背景与目标
-- `product.md` - 产品需求与变更
+- `business.md` - 业务背景、核心业务对象、长期成立的业务规则与边界
+- `product.md` - 目标用户、核心任务、产品判断原则与关键体验共识
 - `architecture.md` - 架构设计与技术决策
-- `learnings.md` - 踩坑经验与教训
+- `learnings.md` - 长期复用的失败模式、诊断启发式与交付教训
 
 **重要**：
-- 不使用 subagent
 - 不记录敏感信息（密钥、凭证等）
 - 失败时跳过并警告
 - 空变更时跳过生成
@@ -54,7 +53,7 @@ git diff $MAIN_BRANCH...HEAD --name-only
 
 用户项目根目录通过以下方式确定：
 
-1. 查找包含 `.git` 目录的最近祖先目录
+1. 查找包含 `.git` 目录或 `.git` 文件的最近祖先目录
 2. 或者使用 `skill/scripts/get-project-root.sh` 脚本
 3. 目标 docs 目录：`{PROJECT_ROOT}/docs/`
 
@@ -138,166 +137,188 @@ fi
 
 #### 3.1 Document: business.md
 
-**目的**：记录业务背景与目标
+**目的**：记录长期有效的业务认知，而不是一次性变更摘要
 
 **结构要求**：
 
 ```markdown
-# Business Context
+# 业务介绍
 
-## Change Overview
+## 业务目标与存在理由
+[说明系统存在的根本原因，不要写成单次 feature 目标]
+
+## 核心业务对象
+[定义关键术语、对象和它们之间的关系]
+
+## 不可破坏的业务规则
+[记录长期成立的业务 invariant、约束和边界]
+
+## 关键业务流程
+[仅保留主链路，不写实现细节]
+
+## 成功定义
+[记录业务成功信号、代理指标和负向信号]
+
+## 业务边界与非目标
+[明确本系统负责和不负责什么]
+
+## 已验证的业务判断
+[记录已经被证明有效、可复用的业务结论]
+
+## 更新日志
+### {YYYY-MM-DD HH:mm:ss}
 - Change ID: {change_id}
-- Date: {timestamp}
-- Branch: {branch_name}
-
-## Business Goal
-[简要说明此次变更的业务目标]
-
-## Background
-[变更前的业务状态]
-
-## Impact
-[变更带来的业务影响]
-
-## Success Criteria
-[如何衡量变更成功]
-
-## Related Links
-- [相关 Issue/PR 链接]
+- Generated At: {ISO timestamp}
+- What Changed in Canonical Understanding: {本次改变了哪些长期业务认知}
 ```
 
 **生成指令**：
-1. 从 delta-spec.md 提取业务目标
-2. 从 current-workflow-state.md 提取变更时间
-3. 从 git diff 提取涉及的配置文件
-4. 组织为业务视角的描述
+1. 优先提取稳定业务认知: 业务目标、术语、规则、边界、主流程、成功定义
+2. 只有当本次变更改变了长期业务认知时，才更新正文对应 section
+3. 如果只是实现变化但不改变长期认知，只追加 `## 更新日志`
+4. 禁止把一次性任务细节、接口参数或纯技术实现写进正文
 
 ---
 
 #### 3.2 Document: product.md
 
-**目的**：记录产品需求与变更
+**目的**：记录长期复用的产品判断框架，而不是功能流水账
 
 **结构要求**：
 
 ```markdown
-# Product Requirements
+# 产品功能
 
-## Change Overview
+## 目标用户与使用角色
+[说明主要用户、次要角色、关键差异]
+
+## 核心任务（JTBD）
+[说明用户雇佣产品来完成什么任务]
+
+## 核心场景
+[保留 3-5 个高频高价值场景，不写零散功能清单]
+
+## 需求优先级原则
+[记录做优先级判断时默认采用的规则]
+
+## 关键体验原则
+[记录默认体验要求，如反馈速度、容错、可解释性]
+
+## 关键取舍与拒绝事项
+[记录已经拒绝的方案及原因]
+
+## 已知用户坑点
+[记录高频误解、失败路径和预防方式]
+
+## 验收与成功信号
+[记录 feature 级成功标准和上线后应观察的信号]
+
+## 更新日志
+### {YYYY-MM-DD HH:mm:ss}
 - Change ID: {change_id}
-- Date: {timestamp}
-
-## Requirements Addressed
-[此次变更解决的问题列表]
-
-## Feature Changes
-### Added
-- [新增功能描述]
-
-### Modified
-- [修改功能描述]
-
-### Removed
-- [删除功能描述]
-
-## User Impact
-[对用户的影响]
-
-## Success Metrics
-[成功指标]
+- Generated At: {ISO timestamp}
+- What Changed in Canonical Understanding: {本次改变了哪些长期产品认知}
 ```
 
 **生成指令**：
-1. 从 delta-spec.md 提取需求描述
-2. 从 git diff 提取新增/修改的功能点
-3. 从 audit-log.md 提取产品决策
-4. 组织为产品视角的描述
+1. 优先提取用户、场景、需求判断原则、体验原则和被拒绝方案
+2. 只有当本次变更改变了长期产品认知时，才更新正文对应 section
+3. 如果只是 feature 实现，没有改变用户模型或产品原则，只追加 `## 更新日志`
+4. 禁止把 `Added/Modified/Removed` 清单、负责人栏位或机械功能矩阵当正文主体
 
 ---
 
 #### 3.3 Document: architecture.md
 
-**目的**：记录架构设计与技术决策
+**目的**：记录长期复用的架构认知与决策约束，而不是单次技术变更清单
 
 **结构要求**：
 
 ```markdown
-# Architecture & Technical Decisions
+# 架构文档
 
-## Change Overview
+## 系统目标与架构边界
+[说明系统在技术层面必须长期满足什么，以及明确的职责边界]
+
+## 核心组件与职责
+[定义关键模块、接口责任和依赖边界]
+
+## 关键数据流与控制流
+[只保留主调用链、状态变化和失败路径，不写零散实现细节]
+
+## 关键技术决策
+[记录关键决策、备选方案、权衡和未来重评估触发条件]
+
+## 依赖与外部系统
+[记录关键依赖、集成边界和耦合风险]
+
+## 扩展点与演进策略
+[记录扩展点、演进限制和重构信号]
+
+## 运行与操作约束
+[记录运行假设、观测点、故障定位入口和关键操作注意事项]
+
+## 已验证的架构判断
+[记录已经被性能、事故、测试或生产观察验证过的架构结论]
+
+## 更新日志
+### {YYYY-MM-DD HH:mm:ss}
 - Change ID: {change_id}
-- Date: {timestamp}
-
-## Technical Decisions
-### Decision 1: {标题}
-- Context: {决策背景}
-- Decision: {决策内容}
-- Alternatives Considered: {备选方案}
-- Trade-offs: {权衡点}
-
-## Architecture Changes
-[架构层面的变更描述]
-
-## Dependencies
-### New Dependencies
-- [新增依赖]
-
-### Modified Dependencies
-- [修改的依赖]
-
-## Data Models
-[数据模型变更，如果有]
-
-## API Changes
-[API 变更，如果有]
+- Generated At: {ISO timestamp}
+- What Changed in Canonical Understanding: {本次改变了哪些长期架构认知}
 ```
 
 **生成指令**：
-1. 从 audit-log.md 提取技术决策
-2. 从 git diff 提取依赖变更
-3. 从代码变更中提取架构影响
-4. 组织为技术视角的描述
+1. 优先提取系统边界、核心组件职责、主调用链、关键技术决策、演进约束和运维观测点
+2. 只有当本次变更改变了长期架构认知时，才更新正文对应 section
+3. 如果只是实现或局部接口变化，没有改变长期架构认知，只追加 `## 更新日志`
+4. 禁止把单次 API 变更、零散依赖列表或部署流水账当作正文主体
 
 ---
 
 #### 3.4 Document: learnings.md
 
-**目的**：记录踩坑经验与教训
+**目的**：记录长期复用的失败模式、诊断启发式与交付教训，而不是一次性踩坑流水账
 
 **结构要求**：
 
 ```markdown
-# Learnings & Lessons
+# 项目经验与教训
 
-## Change Overview
+## 高价值失败模式
+### {模式名称}
+- 适用范围: {通常在哪类任务、模块或阶段出现}
+- 触发信号: {遇到什么现象时应联想到这个模式}
+- 常见误判: {最容易做出的错误判断}
+- 实际根因: {真正的深层原因}
+- 首选排查路径: {优先检查的证据、文件或命令}
+- 标准修复策略: {已验证有效的修复方式}
+- 预防规则: {以后如何避免再次发生}
+
+## 调试与诊断启发式
+[沉淀可复用的排查顺序、证据优先级和反例]
+
+## 关键决策教训
+[记录高成本错误决策、代价和未来默认做法]
+
+## Review 与交接检查清单
+[记录进入 code review、验证或交接前必须确认的检查项]
+
+## 已验证的有效实践
+[记录已经多次证明有效的工作方式及复用边界]
+
+## 更新日志
+### {YYYY-MM-DD HH:mm:ss}
 - Change ID: {change_id}
-- Date: {timestamp}
-
-## Challenges Faced
-### Challenge 1: {标题}
-- Problem: {问题描述}
-- Root Cause: {根本原因}
-- Solution: {解决方案}
-- Duration: {解决问题花费的时间}
-
-## Unexpected Issues
-[开发过程中遇到的意外问题]
-
-## Knowledge Gained
-[新获得的知识]
-
-## Recommendations
-[对未来类似工作的建议]
-
-## References
-[相关文档、链接]
+- Generated At: {ISO timestamp}
+- What Changed in Canonical Understanding: {本次新增或修正了哪些长期有效的经验教训}
 ```
 
 **生成指令**：
-1. 从 audit-log.md 提取问题与解决方案
-2. 从 git diff 提取修复的 bug
-3. 从 current-plan.md 提取执行过程中的挑战
-4. 组织为经验视角的描述
+1. 优先从 audit-log.md、current-plan.md、git diff 中抽取可复用的失败模式、诊断路径和预防规则
+2. 只有当本次变更改变了长期经验认知时，才更新正文对应 section
+3. 如果只是一次性实现问题或局部修复，没有形成可复用教训，只追加 `## 更新日志`
+4. 禁止把逐日流水账、耗时记录、零散 bug 列表或临时情绪化结论写成正文
 
 ---
 
@@ -323,27 +344,37 @@ done
 | 场景 | 策略 |
 |------|------|
 | 文档不存在 | 直接创建 |
-| 文档存在且有变更 | 追加到变更历史 section |
+| 文档存在且有变更 | 优先按同名 canonical section 合并正文，并将最新记录插入日志 section 顶部 |
 | 文档存在但无相关变更 | 跳过，保持原样 |
 
 #### 4.3 合并操作
 
-对于已存在的文档：
+对于已存在的文档，使用 `skill/scripts/merge-document.sh --mode=smart`：
+
+- 如果目标文档和新内容都包含 `##` 顶级 section：
+  - 同名正文 section 以新内容为准
+  - 目标文档缺失但新内容存在的 section 自动补入
+  - 对 `business.md`、`product.md`、`architecture.md`、`learnings.md` 按对应模板顺序输出正文
+  - `## 更新日志` 或 `## 变更历史` 单独合并，新记录插到顶部
+- 如果新内容只是纯文本片段：
+  - 保持旧行为，只把片段插入日志 section 顶部
 
 ```markdown
----
-## {YYYY-MM-DD} Update (Change: {change_id})
+## 变更历史
 
+### {YYYY-MM-DD HH:mm:ss}
+- Change ID: {change_id}
+- Generated At: {ISO timestamp}
 [生成的新内容]
-
----
-*Previous content preserved above*
 ```
 
 **注意**：
 - 不删除已有内容
 - 保持原有结构
-- 新内容追加到顶部
+- 对 structured memory 文档优先做 section-aware merge，而不是整段覆盖
+- 对已知 memory 文档按模板定义的 canonical section 顺序输出正文
+- 新记录插入到 `## 变更历史` 标题下方
+- 如果文档还没有 `## 变更历史`，在文档末尾追加该 section
 - 添加时间戳和 change ID
 
 ---
@@ -402,13 +433,10 @@ log_error() {
 
 ```bash
 # 无文件变更
-FILE_COUNT=$(git diff $MAIN_BRANCH...HEAD --name-only | wc -l)
+FILE_COUNT=$(git diff $MAIN_BRANCH...HEAD --name-only | sed '/^[[:space:]]*$/d' | wc -l)
 
-# 无实质内容变更（只包含文档注释等）
-CONTENT_CHANGE=$(git diff $MAIN_BRANCH...HEAD --stat | grep -E "^\s+[0-9]+.*\.md$")
-
-if [ "$FILE_COUNT" -eq 0 ] || [ -z "$CONTENT_CHANGE" ]; then
-    echo "SKIP: No significant changes"
+if [ "$FILE_COUNT" -eq 0 ]; then
+    echo "SKIP: No changes detected"
     exit 0
 fi
 ```
@@ -418,7 +446,7 @@ fi
 空变更时：
 
 ```
-1. 输出信息：Skipping memory generation - no significant changes
+1. 输出信息：Skipping memory generation - no changes detected
 2. 不创建/更新任何文档
 3. 不记录日志（避免日志膨胀）
 4. 正常返回主流程
@@ -449,15 +477,13 @@ fi
 | 链接格式 | [text](url) 风格 |
 | 图片格式 | 不包含（纯文本文档） |
 
-### 元数据
+### 更新记录元数据
 
-每个文档必须包含：
+每个新增的变更记录必须包含：
 
 ```markdown
----
-change_id: {change_id}
-generated_at: {ISO timestamp}
----
+- Change ID: {change_id}
+- Generated At: {ISO timestamp}
 ```
 
 ---

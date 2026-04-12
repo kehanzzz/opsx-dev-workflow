@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # 用法: get-project-root.sh
-# 说明: 从当前工作目录向上查找项目根目录（包含 .git 目录的目录）
+# 说明: 从当前工作目录向上查找项目根目录（包含 .git 目录或 .git 文件的目录）
 # 输出: 项目根目录的绝对路径
 # 退出码: 0 成功，1 未找到
 
@@ -13,7 +13,7 @@ show_help() {
     get-project-root.sh
 
 说明:
-    从当前工作目录向上递归查找包含 .git 目录的目录
+    从当前工作目录向上递归查找包含 .git 目录或 .git 文件的目录
     即为项目根目录
 
 输出:
@@ -40,11 +40,14 @@ fi
 START_DIR="${1:-$PWD}"
 
 # 转换为绝对路径
-CURRENT_DIR="$(cd "$START_DIR" && pwd)"
+if ! CURRENT_DIR="$(cd "$START_DIR" 2>/dev/null && pwd)"; then
+    echo "错误: 无法访问目录: $START_DIR" >&2
+    exit 1
+fi
 
-# 向上查找包含 .git 目录的目录
+# 向上查找包含 .git 目录或 .git 文件的目录
 while [ "$CURRENT_DIR" != "/" ]; do
-    if [ -d "$CURRENT_DIR/.git" ]; then
+    if [ -d "$CURRENT_DIR/.git" ] || [ -f "$CURRENT_DIR/.git" ]; then
         echo "$CURRENT_DIR"
         exit 0
     fi
@@ -52,10 +55,10 @@ while [ "$CURRENT_DIR" != "/" ]; do
 done
 
 # 检查根目录
-if [ -d "/.git" ]; then
+if [ -d "/.git" ] || [ -f "/.git" ]; then
     echo "/"
     exit 0
 fi
 
-echo "错误: 未找到项目根目录（.git 目录）" >&2
+echo "错误: 未找到项目根目录（.git 目录或文件）" >&2
 exit 1

@@ -30,7 +30,7 @@ for key in current_phase execution_mode next_action; do
 done
 
 # New checkpoint fields - warn but don't fail for backward compatibility
-for key in checkpoint_status checkpoint_summary; do
+for key in checkpoint_status checkpoint_summary checkpoint_updated_at checkpoint_feedback; do
   if ! rg -q --fixed-strings "\`$key\`:" "$STATE_FILE"; then
     echo "Warning: State file missing optional field: $key" >&2
   fi
