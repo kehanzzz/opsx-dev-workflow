@@ -12,8 +12,7 @@
 | Implementation | Step 5 execution modes | Implementation under TDD discipline |
 | Code review | `superpowers:requesting-code-review` | Reviewed implementation with resolved feedback |
 | Verification | `openspec-verify-change` | Verifiable validation results |
-| Archiving | `openspec-archive-change` | Complete archival materials |
-| Branch finish | `superpowers:finishing-a-development-branch` | Merge, PR, or cleanup decisions |
+| Finalization | `openspec-archive-change` + `superpowers:finishing-a-development-branch` | Archive the change, then finish branch/merge cleanup |
 
 ## Phase Rules
 
@@ -63,12 +62,19 @@
 - Record external invocations, task reviews, and acceptance conclusions in `workflow-state/audit-log.md`.
 - If the scope changes significantly, return to the exploration and spec phases.
 - For details on modes, templates, and reviews, see [execution-modes.md](execution-modes.md).
+- Use `scripts/start-code-review-loop.sh` after implementation instead of prompting for a verify/review fork.
+- Phase 5 completion now hands off directly to Phase 5.5; do not pause for a verify/review choice.
 
 ### 5.5 Code Review
 
 - Required: `superpowers:requesting-code-review`
-- Enter this phase only when Step 5 explicitly chooses `review`.
-- Review feedback must be addressed before moving to verification.
+- Required when feedback arrives: `superpowers:receiving-code-review`
+- Enter this phase automatically after Phase 5 completes.
+- Automatic review/fix loops are capped at 2 rounds.
+- `APPROVED` moves directly to `verification` with `next_action=openspec-verify-change`.
+- `CHANGES_REQUESTED` on the first round triggers automatic repair and `scripts/continue-code-review-loop.sh`.
+- `BLOCKED`, or a second-round `CHANGES_REQUESTED`, stops the loop and sets `next_action=await-user-review-resolution`.
+- Use `scripts/handle-code-review-result.sh` as the write-back entrypoint for each review result.
 
 ### 6. Verify Results
 
@@ -77,19 +83,21 @@
 - Resolve the verification path first with `scripts/select-verification-strategy.sh`; if capabilities are missing, fall back to repository-native verification plus `openspec-verify-change`.
 - Fix failures before proceeding.
 
-### 7. Archive Work
+### 7. Finalization
 
 - Required: `openspec-archive-change`
-- Before invoking archival, enter `archive-approval` via `scripts/prepare-phase-gate.sh` and wait for approval.
-- Only after approval should the workflow enter `archive` via `scripts/enter-approved-phase.sh` and run archival.
-- Archive only when implementation, spec, and verification states are aligned.
-
-### 8. Finish Branch Development
-
 - Required: `superpowers:finishing-a-development-branch`
-- Before invoking branch finish actions, enter `branch-finish-approval` via `scripts/prepare-phase-gate.sh` and wait for approval.
-- Only after approval should the workflow enter `branch-finish` via `scripts/enter-approved-phase.sh`.
-- That skill handles final test confirmation, merge or PR decisions, cleanup, and branch finish.
+- Before invoking finalization, enter `finalization-approval` via `scripts/prepare-phase-gate.sh` and wait for approval.
+- Only after approval should the workflow enter `finalization` via `scripts/enter-approved-phase.sh`.
+- Memory generation is mandatory inside `finalization`.
+- Start the finalization pipeline with `scripts/start-finalization-pipeline.sh`.
+- Dispatch one dedicated subagent per action.
+- Inside `finalization`, run actions in this fixed order: mandatory memory generation, `openspec-archive-change`, then `superpowers:finishing-a-development-branch`.
+- Render subagent-specific prompts with:
+  - `scripts/render-memory-generation-prompt.sh`
+  - `scripts/render-archive-prompt.sh`
+  - `scripts/render-branch-finish-prompt.sh`
+- After each stage completes or blocks, write back the result with `scripts/complete-finalization-stage.sh`.
 
 ## Stop Conditions
 
@@ -109,8 +117,8 @@ If any stop condition occurs, identify the earliest failing phase and restart fr
 - Treating an upstream skill’s default “next step” as the workflow’s final next step.
 - Skipping `superpowers:test-driven-development` during the execution phase.
 - Treating an external agent’s success report as verification evidence.
-- Running `openspec-archive-change` before `openspec-verify-change`.
-- Ending branch development without invoking `superpowers:finishing-a-development-branch`.
+- Running finalization before `openspec-verify-change`.
+- Skipping `openspec-archive-change` or `superpowers:finishing-a-development-branch` inside finalization.
 
 ## Checkpoint Mechanism
 
@@ -125,16 +133,18 @@ Checkpoints are automatic pause points that occur after major review gates. They
 
 ### Trigger Timing
 
-Checkpoints are triggered automatically after these phases:
+Checkpoints are triggered automatically after these phases or gate boundaries:
 
 - Phase 1: After requirement exploration completes, using a session-level summary rather than change-bound state scripts
 - Phase 3: After change and spec creation completes
 - Phase 4: After execution plan writing completes
-- Phase 5: After implementation execution completes
-- Phase 5.5: After code review completes
 - Phase 6: After verification completes
-- Phase 7: Before archival executes, using the `archive-approval` gate
-- Phase 8: Before branch finish executes, using the `branch-finish-approval` gate
+- Phase 7: Before finalization executes, using the `finalization-approval` gate
+
+Phase 5 and Phase 5.5 no longer introduce a mandatory human approval pause:
+
+- Phase 5 hands off directly into the automatic review loop
+- Phase 5.5 only pauses when the loop ends in `manual_intervention_required`
 
 ### Summary Format
 

@@ -169,33 +169,19 @@ Phase 1 does not create a change yet, so do not call change-bound checkpoint scr
 
 **Stop Condition**: If the scope changes significantly, return to exploration and spec phases.
 
-**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+Phase 5 completes by automatically entering Phase 5.5; do not prompt for a verify/review branch here.
 
-1. Run checkpoint scripts:
+1. Start the automatic review loop:
    ```bash
-   ./scripts/generate-checkpoint-summary.sh execution <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending
+   ./scripts/start-code-review-loop.sh <change_id> 2
    ```
 
-2. Present the summary to the user and await input.
+2. Invoke `superpowers:requesting-code-review` against the recorded `review_base_sha..review_head_sha` range.
 
-3. User actions:
-   | Action | Description | State Transition |
-   |--------|-------------|------------------|
-   | `approve` / `y` | Confirm phase completion and select next step | See Step 4 below |
-   | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
-   | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
-
-4. **After approve**: Use the Question tool to prompt for next step selection:
-
-   **Select next step**:
-   | Option | Description | Next Action |
-   |--------|-------------|-------------|
-   | `verify` | Proceed to verification phase | Invoke `openspec-verify-change` |
-   | `review` | Request code review first | Invoke `superpowers:requesting-code-review`, then proceed to Phase 5.5 |
-
-   **Proceed based on selection**:
-   - If `verify`: Update `next_action` to `openspec-verify-change` and proceed to Phase 6
-   - If `review`: Update `next_action` to `code-review`, invoke `superpowers:requesting-code-review`, then enter Phase 5.5
+3. If review returns issues, process them through `superpowers:receiving-code-review`, fix them, verify the fixes, and continue the loop with:
+   ```bash
+   ./scripts/continue-code-review-loop.sh <change_id>
+   ```
 
 ---
 
@@ -205,28 +191,28 @@ Phase 1 does not create a change yet, so do not call change-bound checkpoint scr
 
 **Upstream Skills**:
 - Required: `superpowers:requesting-code-review`
+- Required when feedback arrives: `superpowers:receiving-code-review`
 
 **Stop Condition**: Address all review feedback before proceeding to verification.
 
-**Checkpoint**: After this phase completes, generate a checkpoint summary and await user approval:
+Automatic review/fix loops are capped at 2 rounds.
 
-1. Run checkpoint scripts:
-   ```bash
-   ./scripts/generate-checkpoint-summary.sh code-review <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending
-   ```
+1. Start with the review anchor created by `./scripts/start-code-review-loop.sh <change_id> 2`.
 
-2. Present the summary to the user and await input.
+2. For each review round:
+   - Request code review using the recorded `review_base_sha..review_head_sha`
+   - Handle the result with:
+     ```bash
+     ./scripts/handle-code-review-result.sh <change_id> <APPROVED|CHANGES_REQUESTED|BLOCKED> "<feedback_summary>"
+     ```
 
-3. User actions:
-   | Action | Description | State Transition |
-   |--------|-------------|------------------|
-   | `approve` / `y` | Confirm review completion | `pending` → `approved`, proceed to Phase 6 |
-   | `reject` / `n` | Review needs more work | `pending` → `rejected`, return to address feedback |
-   | `modify <feedback>` | Provide additional feedback | `pending` → `rejected`, record feedback and await revision |
+3. Result handling:
+   - `APPROVED`: advance directly to Phase 6
+   - `CHANGES_REQUESTED` on round 1: enter automatic repair, then re-anchor with `./scripts/continue-code-review-loop.sh <change_id>`
+   - `CHANGES_REQUESTED` on round 2: stop automatic looping and set `next_action` to `await-user-review-resolution`
+   - `BLOCKED`: stop automatic looping and set `next_action` to `await-user-review-resolution`
 
-4. **After approve**:
-   - Update `next_action` to `openspec-verify-change`
-   - Proceed to Phase 6
+4. If code review is approved, advance directly to Phase 6 with `next_action` set to `openspec-verify-change`.
 
 ---
 
@@ -303,51 +289,13 @@ If one or more agents are unavailable, fall back to repository-native verificati
 
 ---
 
-### Phase 7: Archive Work
+### Phase 7: Finalize And Close
 
-**Description**: Archive the change when implementation, spec, and verification states align.
+**Description**: Execute the final closing pipeline after verification succeeds.
 
-**Upstream Skills**:
-- Required: `openspec-archive-change`
+Memory generation is mandatory inside finalization.
 
-**Stop Condition**: Archive only when implementation, spec, and verification states are aligned.
-
-**Checkpoint**: Before running archival, generate a checkpoint summary and await user approval:
-
-1. Prepare the approval gate:
-   ```bash
-   ./scripts/prepare-phase-gate.sh <change_id> archive "run openspec-archive-change"
-   ```
-
-2. Run checkpoint scripts:
-   ```bash
-   ./scripts/generate-checkpoint-summary.sh archive <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending
-   ```
-
-3. Present the summary to the user and await input.
-
-4. User actions:
-   | Action | Description | State Transition |
-   |--------|-------------|------------------|
-   | `approve` / `y` | Confirm archival may run | `pending` → `approved`, enter archive phase and execute archival |
-   | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
-   | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
-
-5. After approve:
-   ```bash
-   ./scripts/enter-approved-phase.sh <change_id> archive "run openspec-archive-change"
-   ```
-   Then invoke `openspec-archive-change`.
-
----
-
-### Phase 8: Finish Branch Development
-
-**Description**: Handle final test confirmation, merge/PR decisions, and branch finish.
-
-Optional: project memory generation if the project has explicitly enabled it.
-
-When enabled, generate project memory documents to preserve knowledge from this workflow:
+Generate project memory documents to preserve knowledge from this workflow:
 
 1. **Target Documents** (in user project's `docs/` directory):
    - `business.md` - Business context and domain models
@@ -356,30 +304,32 @@ When enabled, generate project memory documents to preserve knowledge from this 
    - `learnings.md` - Lessons learned and troubleshooting notes
 
 2. **Generation Process**:
-   - Read the prompt from `skill/prompts/memory-generation.md`
+   - Render the dedicated subagent prompt with `./scripts/render-memory-generation-prompt.sh <change_id>`
    - Gather context from `workflow-state/` and git diff
    - Generate or update each document with smart merge
    - Record results in workflow-state
-   - Skip this entire action when the project has not explicitly opted in
-
 3. **Error Handling**:
-   - If generation fails: Log warning to workflow-state, continue workflow
-   - If no code changes: Skip generation, log info
-   - Do not create project memory docs unless opt-in has been confirmed
+   - If generation fails: Mark `memory_generation_status` as `blocked` and stop finalization for manual resolution
+   - If no code changes: Treat as a successful no-op and continue finalization
+
+Dispatch one dedicated subagent per finalization action: memory generation, archive, and branch finish.
 
 **Upstream Skills**:
+- Required: `openspec-archive-change`
 - Required: `superpowers:finishing-a-development-branch`
 
-**Checkpoint**: Before running branch finish actions, generate a checkpoint summary and await user approval:
+**Stop Condition**: Do not enter finalization unless verification is complete and the implementation/spec state is ready to archive and close.
+
+**Checkpoint**: Before running finalization, generate a checkpoint summary and await user approval:
 
 1. Prepare the approval gate:
    ```bash
-   ./scripts/prepare-phase-gate.sh <change_id> branch-finish "run superpowers:finishing-a-development-branch"
+   ./scripts/prepare-phase-gate.sh <change_id> finalization "run finalization pipeline"
    ```
 
 2. Run checkpoint scripts:
    ```bash
-   ./scripts/generate-checkpoint-summary.sh branch-finish <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending
+   ./scripts/generate-checkpoint-summary.sh finalization <change_id> | ./scripts/update-checkpoint-state.sh <change_id> pending
    ```
 
 3. Present the summary to the user and await input.
@@ -387,15 +337,37 @@ When enabled, generate project memory documents to preserve knowledge from this 
 4. User actions:
    | Action | Description | State Transition |
    |--------|-------------|------------------|
-   | `approve` / `y` | Confirm branch finish actions may run | `pending` → `approved`, enter branch-finish phase and execute收尾动作 |
+   | `approve` / `y` | Confirm finalization may run | `pending` → `approved`, enter finalization phase and execute最终收尾动作 |
    | `reject` / `n` | Phase needs revision | `pending` → `rejected`, return to fix and re-submit |
    | `modify <feedback>` | Provide feedback for adjustments | `pending` → `rejected`, record feedback and await revision |
 
 5. After approve:
    ```bash
-   ./scripts/enter-approved-phase.sh <change_id> branch-finish "run superpowers:finishing-a-development-branch"
+   ./scripts/enter-approved-phase.sh <change_id> finalization "run finalization pipeline"
+   ./scripts/start-finalization-pipeline.sh <change_id>
    ```
-   Then invoke `superpowers:finishing-a-development-branch`.
+   Inside `finalization`, run actions in order: mandatory memory generation, `openspec-archive-change`, then `superpowers:finishing-a-development-branch`.
+
+6. Finalization subagent chain:
+   - Dispatch a dedicated memory-generation subagent and, on success, call:
+     ```bash
+     ./scripts/render-memory-generation-prompt.sh <change_id> >/tmp/memory-generation-prompt.md
+     ./scripts/complete-finalization-stage.sh <change_id> memory-generation completed
+     ```
+   - Dispatch a dedicated archive subagent and, on success, call:
+     ```bash
+     ./scripts/render-archive-prompt.sh <change_id> >/tmp/archive-prompt.md
+     ./scripts/complete-finalization-stage.sh <change_id> archive completed
+     ```
+   - Dispatch a dedicated branch-finish subagent and, on success, call:
+     ```bash
+     ./scripts/render-branch-finish-prompt.sh <change_id> >/tmp/branch-finish-prompt.md
+     ./scripts/complete-finalization-stage.sh <change_id> branch-finish completed
+     ```
+   - If any subagent blocks, call:
+     ```bash
+     ./scripts/complete-finalization-stage.sh <change_id> <stage> blocked
+     ```
 
 ---
 

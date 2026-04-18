@@ -2,7 +2,7 @@
 
 ## Purpose
 
-在 Phase 8 (Finish Branch Development) 阶段生成项目记忆文档。
+在 finalization 阶段生成项目记忆文档。
 
 此 prompt 用于引导 LLM 直接生成 4 个记忆文档：
 - `business.md` - 业务背景、核心业务对象、长期成立的业务规则与边界
@@ -129,6 +129,14 @@ fi
 - 设计模式选择
 - 权衡取舍点
 - 已知限制
+```
+
+同时从 `current-workflow-state.md` 提取对话中沉淀出来的经验信号：
+
+```
+- notes
+- checkpoint_feedback
+- review_feedback
 ```
 
 ---
@@ -315,7 +323,7 @@ fi
 ```
 
 **生成指令**：
-1. 优先从 audit-log.md、current-plan.md、git diff 中抽取可复用的失败模式、诊断路径和预防规则
+1. 优先从 audit-log.md、current-plan.md、git diff，以及 workflow-state 中的 `notes` / `checkpoint_feedback` / `review_feedback` 抽取可复用的失败模式、诊断路径和预防规则
 2. 只有当本次变更改变了长期经验认知时，才更新正文对应 section
 3. 如果只是一次性实现问题或局部修复，没有形成可复用教训，只追加 `## 更新日志`
 4. 禁止把逐日流水账、耗时记录、零散 bug 列表或临时情绪化结论写成正文

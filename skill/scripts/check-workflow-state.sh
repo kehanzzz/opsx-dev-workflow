@@ -29,8 +29,8 @@ for key in current_phase execution_mode next_action; do
   fi
 done
 
-# New checkpoint fields - warn but don't fail for backward compatibility
-for key in checkpoint_status checkpoint_summary checkpoint_updated_at checkpoint_feedback; do
+# New checkpoint, review loop, and finalization fields - warn but don't fail for backward compatibility
+for key in checkpoint_status checkpoint_summary checkpoint_updated_at checkpoint_feedback review_round review_max_rounds review_loop_status review_base_sha review_head_sha finalization_stage memory_generation_status archive_status branch_finish_status; do
   if ! rg -q --fixed-strings "\`$key\`:" "$STATE_FILE"; then
     echo "Warning: State file missing optional field: $key" >&2
   fi

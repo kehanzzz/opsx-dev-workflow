@@ -2,7 +2,7 @@
 set -euo pipefail
 
 if [[ $# -lt 3 ]]; then
-  echo "Usage: $0 <change-id> <archive|branch-finish> <execute-action> [project-root]" >&2
+  echo "Usage: $0 <change-id> <finalization> <execute-action> [project-root]" >&2
   exit 1
 fi
 
@@ -17,7 +17,7 @@ UPDATE_SCRIPT="$ROOT_DIR/scripts/update-state-field.sh"
 APPEND_AUDIT_SCRIPT="$ROOT_DIR/scripts/append-audit-log.sh"
 
 case "$TARGET_PHASE" in
-  archive|branch-finish)
+  finalization)
     ;;
   *)
     echo "Unsupported gated phase: $TARGET_PHASE" >&2

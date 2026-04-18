@@ -45,9 +45,17 @@ Prefer script-driven state updates over manual edits:
 - `scripts/finish-task-review.sh <change-id> <review-status> <task-status> <mode> <tool> <review-action> <next-action> [project-root]`
 - `scripts/finish-batch-review.sh <change-id> <batch-status> <next-phase> <mode> <tool> <review-action> <next-action> [project-root]`
 - `scripts/advance-phase.sh <change-id> <phase> <next-action> [project-root]`
-- `scripts/prepare-phase-gate.sh <change-id> <archive|branch-finish> <execute-action> [project-root]`
-- `scripts/enter-approved-phase.sh <change-id> <archive|branch-finish> <execute-action> [project-root]`
+- `scripts/prepare-phase-gate.sh <change-id> <finalization> <execute-action> [project-root]`
+- `scripts/enter-approved-phase.sh <change-id> <finalization> <execute-action> [project-root]`
 - `scripts/select-verification-strategy.sh <backend-only|frontend-ui|full-stack> [capabilities_csv]`
+- `scripts/start-code-review-loop.sh <change-id> [max-rounds] [project-root]`
+- `scripts/handle-code-review-result.sh <change-id> <APPROVED|CHANGES_REQUESTED|BLOCKED> <feedback-summary> [project-root]`
+- `scripts/continue-code-review-loop.sh <change-id> [project-root]`
+- `scripts/start-finalization-pipeline.sh <change-id> [project-root]`
+- `scripts/complete-finalization-stage.sh <change-id> <memory-generation|archive|branch-finish> <completed|blocked> [project-root]`
+- `scripts/render-memory-generation-prompt.sh <change-id> [project-root] [output-file]`
+- `scripts/render-archive-prompt.sh <change-id> [project-root] [output-file]`
+- `scripts/render-branch-finish-prompt.sh <change-id> [project-root] [output-file]`
 - `scripts/append-audit-log.sh <change-id> <phase> <mode> <tool> <action> <result> <next-action> [project-root]`
 
 ## Before Entering Step 5

@@ -15,7 +15,7 @@ TESTS_FAILED=0
 TEST_DIR=""
 SCRIPT_DIR=""
 
-PHASES=("explore" "branch-setup" "change-and-spec" "planning" "execution" "code-review" "verification" "archive" "branch-finish")
+PHASES=("explore" "branch-setup" "change-and-spec" "planning" "execution" "code-review" "verification" "finalization")
 
 log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
 log_success() { echo -e "${GREEN}[PASS]${NC} $1"; }
@@ -115,8 +115,7 @@ test_phase_descriptions() {
         "execution:执行阶段"
         "code-review:代码评审"
         "verification:验证阶段"
-        "archive:归档阶段"
-        "branch-finish:分支完成"
+        "finalization:最终收尾阶段"
     )
     
     for tc in "${test_cases[@]}"; do
@@ -141,7 +140,7 @@ test_default_achievements() {
         "explore:完成需求分析"
         "execution:完成代码实现"
         "code-review:完成代码评审"
-        "archive:代码已归档"
+        "finalization:最终收尾条件已确认"
     )
     
     for tc in "${test_cases[@]}"; do
@@ -166,7 +165,7 @@ test_next_steps() {
         "explore:进入规划阶段"
         "planning:开始开发迭代"
         "code-review:进入验证阶段"
-        "archive:清理开发分支"
+        "finalization:执行最终归档与分支结束流程"
     )
     
     for tc in "${test_cases[@]}"; do
@@ -229,7 +228,7 @@ test_timestamp_format() {
 test_all_phases_summary() {
     log_info "=== 测试所有受支持阶段摘要 ==="
     
-    local expected_phases=("explore" "branch-setup" "change-and-spec" "planning" "execution" "code-review" "verification" "archive" "branch-finish")
+    local expected_phases=("explore" "branch-setup" "change-and-spec" "planning" "execution" "code-review" "verification" "finalization")
     
     for phase in "${expected_phases[@]}"; do
         local output
@@ -277,6 +276,76 @@ test_state_backed_summary() {
         pass_test "摘要包含 workflow-state 中的 next_action"
     else
         fail_test "摘要未包含 workflow-state 中的 next_action" "$output"
+    fi
+}
+
+test_code_review_loop_summary() {
+    log_info "=== 测试 code-review 摘要反映自动 loop 状态 ==="
+
+    setup_change_state "TEST-REVIEW-SUMMARY"
+
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-REVIEW-SUMMARY" workflow current_phase "code-review" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-REVIEW-SUMMARY" workflow next_action "request-code-review-round-2" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-REVIEW-SUMMARY" workflow review_round "2" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-REVIEW-SUMMARY" workflow review_max_rounds "2" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-REVIEW-SUMMARY" workflow review_loop_status "pending_review" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-REVIEW-SUMMARY" workflow review_base_sha "1234567890abcdef" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-REVIEW-SUMMARY" workflow review_head_sha "fedcba0987654321" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-REVIEW-SUMMARY" task review_status "PENDING_REVIEW" "$TEST_DIR" >/dev/null
+
+    local output
+    output=$(cd "$TEST_DIR" && "$SCRIPT_DIR/generate-checkpoint-summary.sh" "code-review" "TEST-REVIEW-SUMMARY" 2>&1)
+
+    if echo "$output" | grep -q "Review 轮次: 2/2"; then
+        pass_test "code-review 摘要包含 review 轮次"
+    else
+        fail_test "code-review 摘要未包含 review 轮次" "$output"
+    fi
+
+    if echo "$output" | grep -q "Review 循环状态: pending_review"; then
+        pass_test "code-review 摘要包含 review loop 状态"
+    else
+        fail_test "code-review 摘要未包含 review loop 状态" "$output"
+    fi
+
+    if echo "$output" | grep -q "1234567..fedcba0"; then
+        pass_test "code-review 摘要包含 review SHA 范围"
+    else
+        fail_test "code-review 摘要未包含 review SHA 范围" "$output"
+    fi
+}
+
+test_finalization_summary() {
+    log_info "=== 测试 finalization 摘要反映流水线状态 ==="
+
+    setup_change_state "TEST-FINAL-SUMMARY"
+
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-FINAL-SUMMARY" workflow current_phase "finalization" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-FINAL-SUMMARY" workflow next_action "dispatch-archive-subagent" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-FINAL-SUMMARY" workflow finalization_stage "archive" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-FINAL-SUMMARY" workflow memory_generation_status "completed" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-FINAL-SUMMARY" workflow archive_status "in_progress" "$TEST_DIR" >/dev/null
+    "$SCRIPT_DIR/update-state-field.sh" "TEST-FINAL-SUMMARY" workflow branch_finish_status "pending" "$TEST_DIR" >/dev/null
+
+    local output
+    output=$(cd "$TEST_DIR" && "$SCRIPT_DIR/generate-checkpoint-summary.sh" "finalization" "TEST-FINAL-SUMMARY" 2>&1)
+
+    if echo "$output" | grep -q "Finalization 当前子阶段: archive"; then
+        pass_test "finalization 摘要包含当前子阶段"
+    else
+        fail_test "finalization 摘要未包含当前子阶段" "$output"
+    fi
+
+    if echo "$output" | grep -q "Memory generation 状态: completed"; then
+        pass_test "finalization 摘要包含 memory generation 状态"
+    else
+        fail_test "finalization 摘要未包含 memory generation 状态" "$output"
+    fi
+
+    if echo "$output" | grep -q "Archive 状态: in_progress"; then
+        pass_test "finalization 摘要包含 archive 状态"
+    else
+        fail_test "finalization 摘要未包含 archive 状态" "$output"
     fi
 }
 
@@ -348,6 +417,8 @@ main() {
     test_timestamp_format
     test_all_phases_summary
     test_state_backed_summary
+    test_code_review_loop_summary
+    test_finalization_summary
     test_checkpoint_summary_persisted
     
     print_summary

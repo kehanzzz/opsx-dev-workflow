@@ -65,18 +65,36 @@ main() {
     "$ROOT_DIR/references/external-agent-tools.md" \
     "外部工具文档将 claude-code 降级为占位能力"
 
-  assert_found 'Optional: project memory generation if the project has explicitly enabled it.' \
+  assert_found 'Memory generation is mandatory inside finalization.' \
     "$ROOT_DIR/SKILL.md" \
-    "memory generation 已降级为显式启用的可选动作"
-  assert_found './scripts/prepare-phase-gate.sh <change_id> archive "run openspec-archive-change"' \
+    "memory generation 已改为 finalization 必做动作"
+  assert_found '### Phase 7: Finalize And Close' \
     "$ROOT_DIR/SKILL.md" \
-    "archive 改为执行前审批 gate"
-  assert_found './scripts/enter-approved-phase.sh <change_id> branch-finish "run superpowers:finishing-a-development-branch"' \
+    "Phase 7/8 已合并为单一 finalization 阶段"
+  assert_found './scripts/prepare-phase-gate.sh <change_id> finalization "run finalization pipeline"' \
     "$ROOT_DIR/SKILL.md" \
-    "branch-finish 改为审批后进入执行阶段"
+    "finalization 改为单一执行前审批 gate"
+  assert_found 'Inside `finalization`, run actions in order: mandatory memory generation, `openspec-archive-change`, then `superpowers:finishing-a-development-branch`.' \
+    "$ROOT_DIR/SKILL.md" \
+    "finalization 阶段固定内部顺序"
+  assert_found 'Dispatch one dedicated subagent per finalization action: memory generation, archive, and branch finish.' \
+    "$ROOT_DIR/SKILL.md" \
+    "finalization 阶段为三个收尾动作分配独立 subagent"
   assert_found 'Resolve the verification path first with `scripts/select-verification-strategy.sh`' \
     "$ROOT_DIR/references/workflow-reference.md" \
     "验证阶段文档提供 capability gating 和回退路径"
+  assert_found 'Phase 5 completes by automatically entering Phase 5.5; do not prompt for a verify/review branch here.' \
+    "$ROOT_DIR/SKILL.md" \
+    "Phase 5 完成后自动进入 Phase 5.5"
+  assert_found 'Automatic review/fix loops are capped at 2 rounds.' \
+    "$ROOT_DIR/SKILL.md" \
+    "Phase 5.5 自动修复轮次上限为 2"
+  assert_found 'If code review is approved, advance directly to Phase 6 with `next_action` set to `openspec-verify-change`.' \
+    "$ROOT_DIR/SKILL.md" \
+    "Phase 5.5 通过后直接进入 Phase 6"
+  assert_found 'Use `scripts/start-code-review-loop.sh` after implementation instead of prompting for a verify/review fork.' \
+    "$ROOT_DIR/references/workflow-reference.md" \
+    "workflow-reference 改为自动 review loop"
 }
 
 main "$@"

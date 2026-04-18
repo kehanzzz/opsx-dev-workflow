@@ -15,7 +15,7 @@ show_help() {
 参数:
     phase_name      阶段名称 (explore, branch-setup, change-and-spec,
                               planning, execution, code-review,
-                              verification, archive, branch-finish)
+                              verification, finalization)
     change_id       变更 ID
     custom_summary  可选的自定义摘要文本
     project_root    可选的项目根目录（包含 openspec/）
@@ -74,6 +74,8 @@ build_state_achievements() {
     local task_file="$3"
     local result=""
     local current_phase execution_mode external_tool spec_path plan_path current_task_id next_action last_verified_at notes
+    local review_round review_max_rounds review_loop_status review_base_sha review_head_sha
+    local finalization_stage memory_generation_status archive_status branch_finish_status
     local plan_summary tasks_total tasks_completed tasks_blocked plan_drift_detected
     local task_id task_goal task_status review_status
 
@@ -86,6 +88,15 @@ build_state_achievements() {
     next_action="$(get_field "$workflow_file" next_action)"
     last_verified_at="$(get_field "$workflow_file" last_verified_at)"
     notes="$(get_field "$workflow_file" notes)"
+    review_round="$(get_field "$workflow_file" review_round)"
+    review_max_rounds="$(get_field "$workflow_file" review_max_rounds)"
+    review_loop_status="$(get_field "$workflow_file" review_loop_status)"
+    review_base_sha="$(get_field "$workflow_file" review_base_sha)"
+    review_head_sha="$(get_field "$workflow_file" review_head_sha)"
+    finalization_stage="$(get_field "$workflow_file" finalization_stage)"
+    memory_generation_status="$(get_field "$workflow_file" memory_generation_status)"
+    archive_status="$(get_field "$workflow_file" archive_status)"
+    branch_finish_status="$(get_field "$workflow_file" branch_finish_status)"
 
     plan_summary="$(get_field "$plan_file" plan_summary)"
     tasks_total="$(get_field "$plan_file" tasks_total)"
@@ -140,6 +151,38 @@ build_state_achievements() {
         result="$(append_line "$result" "- 评审结论: $review_status")"
     fi
 
+    if [[ -n "$review_round" && "$review_round" != "UNSET" ]]; then
+        if [[ -n "$review_max_rounds" && "$review_max_rounds" != "UNSET" ]]; then
+            result="$(append_line "$result" "- Review 轮次: $review_round/$review_max_rounds")"
+        else
+            result="$(append_line "$result" "- Review 轮次: $review_round")"
+        fi
+    fi
+
+    if [[ -n "$review_loop_status" && "$review_loop_status" != "UNSET" ]]; then
+        result="$(append_line "$result" "- Review 循环状态: $review_loop_status")"
+    fi
+
+    if [[ -n "$review_base_sha" && "$review_base_sha" != "UNSET" && -n "$review_head_sha" && "$review_head_sha" != "UNSET" ]]; then
+        result="$(append_line "$result" "- Review 范围: ${review_base_sha:0:7}..${review_head_sha:0:7}")"
+    fi
+
+    if [[ -n "$finalization_stage" && "$finalization_stage" != "UNSET" ]]; then
+        result="$(append_line "$result" "- Finalization 当前子阶段: $finalization_stage")"
+    fi
+
+    if [[ -n "$memory_generation_status" && "$memory_generation_status" != "UNSET" ]]; then
+        result="$(append_line "$result" "- Memory generation 状态: $memory_generation_status")"
+    fi
+
+    if [[ -n "$archive_status" && "$archive_status" != "UNSET" ]]; then
+        result="$(append_line "$result" "- Archive 状态: $archive_status")"
+    fi
+
+    if [[ -n "$branch_finish_status" && "$branch_finish_status" != "UNSET" ]]; then
+        result="$(append_line "$result" "- Branch finish 状态: $branch_finish_status")"
+    fi
+
     if [[ -n "$execution_mode" && "$execution_mode" != "UNSET" ]]; then
         result="$(append_line "$result" "- 执行模式: $execution_mode")"
     fi
@@ -172,8 +215,7 @@ get_phase_description() {
         execution) echo "执行阶段" ;;
         code-review) echo "代码评审" ;;
         verification) echo "验证阶段" ;;
-        archive) echo "归档阶段" ;;
-        branch-finish) echo "分支完成" ;;
+        finalization) echo "最终收尾阶段" ;;
         *) echo "$1" ;;
     esac
 }
@@ -223,15 +265,10 @@ get_default_achievements() {
             echo "- 性能测试达标"
             echo "- 文档已更新"
             ;;
-        archive)
-            echo "- 代码已归档"
-            echo "- 文档已存档"
-            echo "- 变更已关闭"
-            ;;
-        branch-finish)
-            echo "- 分支已清理"
-            echo "- 合并到主分支"
-            echo "- 发布完成"
+        finalization)
+            echo "- 收尾动作已准备就绪"
+            echo "- 归档与分支结束动作已排定"
+            echo "- 最终收尾条件已确认"
             ;;
     esac
 }
@@ -268,13 +305,9 @@ get_next_steps() {
             echo "- 准备发布"
             echo "- 确认部署计划"
             ;;
-        archive)
-            echo "- 清理开发分支"
-            echo "- 更新主变更记录"
-            ;;
-        branch-finish)
+        finalization)
             echo "- 任务完成"
-            echo "- 总结经验教训"
+            echo "- 执行最终归档与分支结束流程"
             ;;
     esac
 }
@@ -293,7 +326,7 @@ build_state_next_steps() {
 
 validate_phase() {
     local phase="$1"
-    local valid_phases="explore branch-setup change-and-spec planning execution code-review verification archive branch-finish"
+    local valid_phases="explore branch-setup change-and-spec planning execution code-review verification finalization"
     
     for valid in $valid_phases; do
         if [ "$phase" = "$valid" ]; then

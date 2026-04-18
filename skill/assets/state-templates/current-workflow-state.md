@@ -20,3 +20,12 @@
 - `review_requested_at`: `UNSET`
 - `review_completed_at`: `UNSET`
 - `review_feedback`: `UNSET`
+- `review_round`: `UNSET`
+- `review_max_rounds`: `UNSET`
+- `review_loop_status`: `UNSET`
+- `review_base_sha`: `UNSET`
+- `review_head_sha`: `UNSET`
+- `finalization_stage`: `UNSET`
+- `memory_generation_status`: `UNSET`
+- `archive_status`: `UNSET`
+- `branch_finish_status`: `UNSET`

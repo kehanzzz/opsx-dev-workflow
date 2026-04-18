@@ -733,12 +733,64 @@ for field in \
     "只有当本次变更改变了长期产品认知时" \
     "只有当本次变更改变了长期架构认知时" \
     "只有当本次变更改变了长期经验认知时" \
+    "notes" \
+    "checkpoint_feedback" \
+    "review_feedback" \
     '禁止把 `Added/Modified/Removed` 清单' \
     "禁止把单次 API 变更、零散依赖列表或部署流水账当作正文主体" \
     "禁止把逐日流水账、耗时记录、零散 bug 列表或临时情绪化结论写成正文" \
     '只追加 `## 更新日志`'; do
     grep -qF "$field" "$prompt_file" && pass_test "prompt 包含规则: $field" || fail_test "prompt 缺少规则: $field"
 done
+
+subagent_prompt="$SCRIPT_DIR/../prompts/memory-generation-subagent.md"
+for field in \
+    "memory generation 专用 subagent" \
+    "只沉淀长期复用的信息" \
+    "checkpoint_feedback" \
+    "review_feedback" \
+    '"{SCRIPT_DIR}/merge-document.sh"' \
+    "STATUS: COMPLETED|SKIPPED|BLOCKED" \
+    "CHANGED_FILES:" \
+    "不要把一次性流水账写进正文"; do
+    grep -qF "$field" "$subagent_prompt" && pass_test "subagent prompt 包含规则: $field" || fail_test "subagent prompt 缺少规则: $field"
+done
+
+echo ""
+log_info "=== render-memory-generation-prompt.sh 测试 ==="
+
+render_repo="$TEST_DIR/render-repo"
+mkdir -p "$render_repo/openspec/changes/CHANGE-123/workflow-state"
+git init "$render_repo" >/dev/null 2>&1
+git -C "$render_repo" config user.name "OpsX Test"
+git -C "$render_repo" config user.email "opsx-test@example.com"
+printf "# state\n" > "$render_repo/openspec/changes/CHANGE-123/workflow-state/current-workflow-state.md"
+printf "# audit\n" > "$render_repo/openspec/changes/CHANGE-123/workflow-state/audit-log.md"
+printf "# plan\n" > "$render_repo/openspec/changes/CHANGE-123/workflow-state/current-plan.md"
+cat > "$render_repo/openspec/changes/CHANGE-123/workflow-state/current-workflow-state.md" <<'EOF'
+# Current workflow state
+
+- `notes`: `总结：review 前先看证据，不要凭印象判断`
+- `checkpoint_feedback`: `用户反馈：补充交接检查项`
+- `review_feedback`: `review 指出需要沉淀失败模式`
+EOF
+mkdir -p "$render_repo/docs"
+printf "seed\n" > "$render_repo/README.md"
+git -C "$render_repo" add README.md
+git -C "$render_repo" commit -m "chore: seed" >/dev/null 2>&1
+git -C "$render_repo" checkout -b feature/memory >/dev/null 2>&1
+
+rendered_prompt="$TEST_DIR/rendered-memory-prompt.md"
+bash "$SCRIPT_DIR/render-memory-generation-prompt.sh" "CHANGE-123" "$render_repo" "$rendered_prompt" >/dev/null
+
+grep -qF "$render_repo/docs/business.md" "$rendered_prompt" && pass_test "rendered prompt 注入 docs 路径" || fail_test "rendered prompt 未注入 docs 路径"
+grep -qF "$render_repo/openspec/changes/CHANGE-123/workflow-state" "$rendered_prompt" && pass_test "rendered prompt 注入 workflow-state 路径" || fail_test "rendered prompt 未注入 workflow-state 路径"
+grep -qF "git -C \"$render_repo\" diff \"main\"...HEAD --stat" "$rendered_prompt" && pass_test "rendered prompt 注入 diff 命令" || fail_test "rendered prompt 未注入 diff 命令"
+grep -qF "$SCRIPT_DIR/merge-document.sh" "$rendered_prompt" && pass_test "rendered prompt 注入 merge-document 脚本路径" || fail_test "rendered prompt 未注入 merge-document 脚本路径"
+grep -qF "STATUS: COMPLETED|SKIPPED|BLOCKED" "$rendered_prompt" && pass_test "rendered prompt 保留输出契约" || fail_test "rendered prompt 丢失输出契约"
+grep -qF "workflow notes: 总结：review 前先看证据，不要凭印象判断" "$rendered_prompt" && pass_test "rendered prompt 注入对话 notes" || fail_test "rendered prompt 未注入对话 notes"
+grep -qF "checkpoint feedback: 用户反馈：补充交接检查项" "$rendered_prompt" && pass_test "rendered prompt 注入 checkpoint feedback" || fail_test "rendered prompt 未注入 checkpoint feedback"
+grep -qF "review feedback: review 指出需要沉淀失败模式" "$rendered_prompt" && pass_test "rendered prompt 注入 review feedback" || fail_test "rendered prompt 未注入 review feedback"
 
 echo ""
 echo "========================================"
